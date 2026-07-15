@@ -70,7 +70,7 @@ export async function seedDatabase() {
         outings: OUTING_CATEGORIES
       },
       theme: 'system', dateFormat: 'dd-mm-yyyy', timeFormat: '24h', currency: 'EUR',
-      notifications: false, weekStartsOn: 1, greetingName: 'Roy',
+      notifications: false, weekStartsOn: 1, greetingName: '',
       createdAt: now, updatedAt: now, deletedAt: null, version: 1,
       deviceId: getDeviceId(), syncStatus: 'local', updatedBy: 'system'
     });

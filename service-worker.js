@@ -1,6 +1,6 @@
 importScripts('./js/workers/background-sync-worker.js');
 
-const CACHE_VERSION = 'samen-thuis-v1.4.3';
+const CACHE_VERSION = 'samen-thuis-v1.4.5';
 const APP_SHELL = [
   './', './index.html', './manifest.json',
   './assets/icons/icon-180.png', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/icon-192.svg', './assets/icons/icon-512.svg',
@@ -12,11 +12,14 @@ const APP_SHELL = [
   './js/workers/background-sync-worker.js',
   './js/views/view-helpers.js', './js/views/dashboard-view.js', './js/views/agenda-view.js', './js/views/shopping-view.js', './js/views/tasks-view.js', './js/views/meals-view.js', './js/views/inventory-view.js', './js/views/expenses-view.js', './js/views/pets-view.js', './js/views/outings-view.js', './js/views/settings-view.js', './js/views/more-view.js', './js/views/activity-view.js', './js/views/templates-view.js',
   './js/components/modal.js', './js/components/toast.js', './js/components/date-picker.js', './js/components/time-picker.js', './js/components/calendar-month.js', './js/components/calendar-week.js', './js/components/calendar-day.js', './js/components/confirm-dialog.js', './js/components/global-search.js', './js/components/quick-add.js', './js/components/cloud-dialog.js',
-  './js/utils/uuid.js', './js/utils/dates.js', './js/utils/formatting.js', './js/utils/device.js', './js/utils/sanitization.js', './js/utils/actor.js'
+  './js/utils/uuid.js', './js/utils/dates.js', './js/utils/formatting.js', './js/utils/device.js', './js/utils/sanitization.js', './js/utils/actor.js', './js/utils/account.js'
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(caches.open(CACHE_VERSION).then((cache) => {
+    const freshRequests = APP_SHELL.map((path) => new Request(new URL(path, self.registration.scope), { cache: 'reload' }));
+    return cache.addAll(freshRequests);
+  }));
 });
 
 self.addEventListener('activate', (event) => {

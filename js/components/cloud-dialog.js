@@ -58,7 +58,7 @@ function openAuthDialog() {
 }
 
 function openFamilyDialog() {
-  const defaultName = services.auth.user?.user_metadata?.display_name || appState.settings?.greetingName || '';
+  const defaultName = services.auth.user?.user_metadata?.display_name || '';
   const modal = openModal({
     title: 'Gezin koppelen', onSubmit: null,
     content: `<p>Je bent ingelogd als <strong>${e(services.auth.user?.email || '')}</strong>. Maak één gezamenlijk gezin of sluit aan met de code van een gezinslid.</p>

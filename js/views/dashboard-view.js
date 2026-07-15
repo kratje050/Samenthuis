@@ -3,6 +3,7 @@ import { addDays, formatDate, fromDateKey, monthKey, toDateKey } from '../utils/
 import { formatCurrency } from '../utils/formatting.js';
 import { e, emptyState } from './view-helpers.js';
 import { getBackupStatus } from '../services/backup-service.js';
+import { accountDisplayName, personalizedGreeting } from '../utils/account.js';
 
 function greeting() { const hour=new Date().getHours(); return hour<12?'Goedemorgen':hour<18?'Goedemiddag':'Goedenavond'; }
 function inventoryWarning(item){const low=Number(item.quantity)<=Number(item.minimumQuantity);const expiry=item.expiryDate?Math.ceil((fromDateKey(item.expiryDate)-fromDateKey(toDateKey()))/86400000):999;return low||expiry<=3}
@@ -20,7 +21,8 @@ export const dashboardView={
     let storage='Beschikbaar';try{const estimate=await navigator.storage?.estimate?.();if(estimate?.usage!==undefined)storage=`${(estimate.usage/1024/1024).toFixed(1)} MB lokaal gebruikt`}catch{}
     const backupStatus=getBackupStatus(now);const backupLabel=backupStatus.date?(backupStatus.daysAgo===0?'Vandaag een back-up gemaakt':`Laatste back-up ${backupStatus.daysAgo} dag${backupStatus.daysAgo===1?'':'en'} geleden`):'Nog geen downloadbare back-up';
     const cloud=appState.cloud;const cloudActive=Boolean(cloud.family);const syncLabel=!navigator.onLine?'Offline; wijzigingen wachten':cloud.sync.status==='syncing'?'Bezig met synchroniseren':cloud.sync.status==='error'?'Synchronisatie heeft aandacht nodig':cloudActive?'Automatische cloudsync actief':'Alleen op dit apparaat';
-    return `<section class="page-stack"><div class="card" style="background:linear-gradient(135deg,var(--brown),var(--brown-2));color:var(--paper)"><p>${formatDate(now,{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p><h2 style="font-size:clamp(1.5rem,6vw,2.4rem)">${greeting()}, ${e(appState.settings.greetingName||appState.settings.members[0]?.name||'familie')}.</h2><p style="margin:0;opacity:.82">Alles voor jullie gezin, rustig op één plek.</p></div>
+    const greetingLine=personalizedGreeting(greeting(),accountDisplayName(cloud));
+    return `<section class="page-stack"><div class="card" style="background:linear-gradient(135deg,var(--brown),var(--brown-2));color:var(--paper)"><p>${formatDate(now,{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p><h2 style="font-size:clamp(1.5rem,6vw,2.4rem)">${e(greetingLine)}</h2><p style="margin:0;opacity:.82">Alles voor jullie gezin, rustig op één plek.</p></div>
     <div class="dashboard-grid">
       <article class="card wide"><div class="card-header"><h2>Afspraken vandaag</h2><a href="#agenda">Agenda openen</a></div>${todayAppointments.length?`<div class="item-list">${todayAppointments.slice(0,5).map(item=>`<div class="list-item"><strong class="agenda-time">${item.allDay?'Hele dag':e(item.startTime)}</strong><div><strong>${e(item.title)}</strong><div class="small muted">${e(item.location||item.category)}</div></div></div>`).join('')}</div>`:emptyState('Geen afspraken vandaag','Er is ruimte in de agenda.')}</article>
       <article class="card"><span class="metric-label">Volgende afspraak</span>${next?`<strong class="metric" style="font-size:1.2rem">${e(next.title)}</strong><p class="small muted">${formatDate(next.occurrenceDate)} ${next.allDay?'':e(next.startTime)}</p>`:`<strong class="metric">—</strong><p class="small muted">Geen komende afspraak</p>`}<a href="#agenda">Bekijken</a></article>

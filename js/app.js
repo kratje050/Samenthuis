@@ -7,6 +7,7 @@ import { openGlobalSearch } from './components/global-search.js';
 import { openQuickAdd } from './components/quick-add.js';
 import { cloudStatusLabel, openCloudDialog } from './components/cloud-dialog.js';
 import { initializePwaInstallOffer } from './services/pwa-install-service.js';
+import { accountDisplayName } from './utils/account.js';
 
 function applyTheme(theme = 'system') {
   const resolved = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
@@ -60,6 +61,16 @@ function initializeCloudUi() {
   update();
 }
 
+function initializeAccountGreetingUpdates() {
+  let currentName = accountDisplayName(appState.cloud);
+  on('cloud', (cloud) => {
+    const nextName = accountDisplayName(cloud);
+    if (nextName === currentName) return;
+    currentName = nextName;
+    if (appState.route === 'home') renderRoute().catch(console.error);
+  });
+}
+
 function showInAppReminder({ title, message }) {
   const root = document.querySelector('#reminder-root');
   const reminder = document.createElement('div');
@@ -98,6 +109,7 @@ async function start() {
     const serviceWorkerRegistration = await registerServiceWorker();
     await services.backgroundSync.start(serviceWorkerRegistration);
     await initializeRouter();
+    initializeAccountGreetingUpdates();
     initializePwaInstallOffer();
     window.addEventListener('samen-thuis-data-synced', () => renderRoute().catch(console.error));
     const reminders = new ReminderService(services.agenda, showInAppReminder); reminders.start();

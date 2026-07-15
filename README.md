@@ -20,6 +20,7 @@ Versie 1.4 is offline-first: alle schermen blijven IndexedDB gebruiken en werken
 - een vaste knop **Snel toevoegen** voor afspraken, boodschappen, taken, maaltijden en uitgaven;
 - één centrale prullenbak in Instellingen om soft-deleted gegevens uit alle onderdelen te herstellen;
 - gezinsactiviteit met wie wat heeft toegevoegd, aangepast of verwijderd;
+- een begroeting zonder naam bij lokaal gebruik en met de eigen accountnaam na inloggen;
 - herbruikbare boodschappen-, taken- en inpaklijsten via sjablonen;
 - een back-upstatus op het dashboard en in Instellingen, met een waarschuwing wanneer de laatste downloadbare back-up ouder wordt;
 - aanpasbare gezinsleden, kleuren, profieliconen, categorieën en thema's;
