@@ -11,10 +11,12 @@ import { petsView } from './views/pets-view.js';
 import { outingsView } from './views/outings-view.js';
 import { settingsView } from './views/settings-view.js';
 import { moreView } from './views/more-view.js';
+import { activityView } from './views/activity-view.js';
+import { templatesView } from './views/templates-view.js';
 
-const views = { home: dashboardView, agenda: agendaView, shopping: shoppingView, tasks: tasksView, meals: mealsView, inventory: inventoryView, expenses: expensesView, pets: petsView, outings: outingsView, settings: settingsView, more: moreView };
-const labels = { home: 'Home', agenda: 'Agenda', shopping: 'Boodschappen', tasks: 'Taken', meals: 'Maaltijden', inventory: 'Voorraad', expenses: 'Uitgaven', pets: 'Huisdieren', outings: 'Uitjes', settings: 'Instellingen', more: 'Meer' };
-const icons = { home: '⌂', agenda: '▣', shopping: '▤', tasks: '✓', meals: '♨', inventory: '◫', expenses: '€', pets: '♣', outings: '⌖', settings: '⚙' };
+const views = { home: dashboardView, agenda: agendaView, shopping: shoppingView, tasks: tasksView, meals: mealsView, inventory: inventoryView, expenses: expensesView, pets: petsView, outings: outingsView, activity: activityView, templates: templatesView, settings: settingsView, more: moreView };
+const labels = { home: 'Home', agenda: 'Agenda', shopping: 'Boodschappen', tasks: 'Taken', meals: 'Maaltijden', inventory: 'Voorraad', expenses: 'Uitgaven', pets: 'Huisdieren', outings: 'Uitjes', activity: 'Activiteit', templates: 'Sjablonen', settings: 'Instellingen', more: 'Meer' };
+const icons = { home: '⌂', agenda: '▣', shopping: '▤', tasks: '✓', meals: '♨', inventory: '◫', expenses: '€', pets: '♣', outings: '⌖', activity: '↻', templates: '▧', settings: '⚙' };
 
 export function buildNavigation() {
   const desktop = document.querySelector('#desktop-nav');

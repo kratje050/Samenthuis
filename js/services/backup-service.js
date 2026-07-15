@@ -5,7 +5,8 @@ import { getStoreRecords } from '../database/indexed-db.js';
 const mapping = {
   afspraken: STORES.appointments, boodschappen: STORES.shopping, taken: STORES.tasks,
   maaltijden: STORES.meals, voorraad: STORES.inventory, uitgaven: STORES.expenses,
-  huisdieren: STORES.pets, uitjes: STORES.outings, outbox: STORES.outbox
+  huisdieren: STORES.pets, uitjes: STORES.outings, activiteiten: STORES.activity,
+  sjablonen: STORES.templates, outbox: STORES.outbox
 };
 const LAST_BACKUP_KEY = 'samen-thuis-last-backup';
 

@@ -6,5 +6,6 @@ const valid={appName:APP_NAME,appVersion:'1.0.0',databaseVersion:DATABASE_VERSIO
 export const backupTests=[
   ['geldige back-up wordt geaccepteerd',()=>assert(validateBackup(structuredClone(valid),{appName:APP_NAME,databaseVersion:DATABASE_VERSION}))],
   ['verkeerde app wordt geweigerd',()=>{let failed=false;try{validateBackup({...structuredClone(valid),appName:'Andere app'},{appName:APP_NAME,databaseVersion:DATABASE_VERSION})}catch{failed=true}assert(failed)}],
-  ['ontbrekende sectie wordt geweigerd',()=>{const invalid=structuredClone(valid);delete invalid.taken;let failed=false;try{validateBackup(invalid,{appName:APP_NAME,databaseVersion:DATABASE_VERSION})}catch{failed=true}assert(failed)}]
+  ['ontbrekende sectie wordt geweigerd',()=>{const invalid=structuredClone(valid);delete invalid.taken;let failed=false;try{validateBackup(invalid,{appName:APP_NAME,databaseVersion:DATABASE_VERSION})}catch{failed=true}assert(failed)}],
+  ['ongeldige outbox-ID wordt geweigerd',()=>{const invalid=structuredClone(valid);invalid.outbox=[{changeId:'geen-uuid',recordId:SETTINGS_ID}];let failed=false;try{validateBackup(invalid,{appName:APP_NAME,databaseVersion:DATABASE_VERSION})}catch{failed=true}assert(failed)}]
 ];

@@ -1,10 +1,11 @@
 import { initializeDatabase } from './database/indexed-db.js';
-import { initializeState, appState, services } from './state.js';
-import { initializeRouter } from './router.js';
+import { initializeState, initializeCloudState, appState, services, on } from './state.js';
+import { initializeRouter, renderRoute } from './router.js';
 import { ReminderService } from './services/reminder-service.js';
 import { showToast } from './components/toast.js';
 import { openGlobalSearch } from './components/global-search.js';
 import { openQuickAdd } from './components/quick-add.js';
+import { cloudStatusLabel, openCloudDialog } from './components/cloud-dialog.js';
 
 function applyTheme(theme = 'system') {
   const resolved = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
@@ -14,7 +15,7 @@ function applyTheme(theme = 'system') {
 function initializeConnectivity() {
   const banner = document.querySelector('#offline-banner');
   const update = () => { banner.hidden = navigator.onLine; };
-  window.addEventListener('online', () => { update(); showToast('Je bent weer online. De app blijft lokaal werken.'); });
+  window.addEventListener('online', () => { update(); showToast(appState.cloud.family ? 'Je bent weer online. Wijzigingen worden gesynchroniseerd.' : 'Je bent weer online. De app blijft lokaal werken.'); });
   window.addEventListener('offline', update);
   update();
 }
@@ -35,9 +36,27 @@ function initializeThemeToggle() {
 function initializeGlobalActions() {
   document.querySelector('#global-search').addEventListener('click', openGlobalSearch);
   document.querySelector('#quick-add').addEventListener('click', openQuickAdd);
+  document.querySelector('#cloud-status').addEventListener('click', openCloudDialog);
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'k') { event.preventDefault(); openGlobalSearch(); }
   });
+}
+
+function initializeCloudUi() {
+  const button = document.querySelector('#cloud-status');
+  const note = document.querySelector('.local-note');
+  const update = () => {
+    const label = cloudStatusLabel();
+    const status = appState.cloud.family ? appState.cloud.sync.status : 'local';
+    button.dataset.syncStatus = status;
+    button.setAttribute('aria-label', `Gezinsaccount: ${label}`);
+    button.title = label;
+    if (note) note.innerHTML = `<span aria-hidden="true">●</span> ${label}`;
+  };
+  on('cloud', update);
+  window.addEventListener('online', update);
+  window.addEventListener('offline', update);
+  update();
 }
 
 function showInAppReminder({ title, message }) {
@@ -50,7 +69,7 @@ function showInAppReminder({ title, message }) {
 }
 
 async function registerServiceWorker() {
-  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return null;
   const registration = await navigator.serviceWorker.register('./service-worker.js');
   const banner = document.querySelector('#update-banner');
   const showUpdate = (worker) => {
@@ -64,6 +83,7 @@ async function registerServiceWorker() {
   });
   navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
   setInterval(() => registration.update(), 60 * 60 * 1000);
+  return registration;
 }
 
 async function start() {
@@ -71,11 +91,14 @@ async function start() {
     applyTheme(localStorage.getItem('samen-thuis-theme') || 'system');
     await initializeDatabase();
     await initializeState();
+    await initializeCloudState();
     applyTheme(appState.settings.theme);
-    initializeConnectivity(); initializeThemeToggle(); initializeGlobalActions();
+    initializeConnectivity(); initializeThemeToggle(); initializeGlobalActions(); initializeCloudUi();
     await initializeRouter();
+    window.addEventListener('samen-thuis-data-synced', () => renderRoute().catch(console.error));
     const reminders = new ReminderService(services.agenda, showInAppReminder); reminders.start();
     await registerServiceWorker();
+    if (appState.settings.notifications) services.push.refreshExisting().catch(console.warn);
     document.querySelector('#app').setAttribute('aria-busy', 'false');
   } catch (error) {
     console.error(error);

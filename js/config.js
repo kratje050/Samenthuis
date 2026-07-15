@@ -1,8 +1,13 @@
 export const APP_NAME = 'Samen Thuis';
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.3.0';
 export const DATABASE_NAME = globalThis.SAMEN_THUIS_TEST_DB || 'samen-thuis-db';
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 3;
 export const SETTINGS_ID = '20000000-0000-4000-8000-000000000001';
+
+export const SUPABASE = Object.freeze({
+  url: 'https://idzfbonwkkqaqnzubmxg.supabase.co',
+  publishableKey: 'sb_publishable_JT8fyOu93Dke7D_NlbzbCw_GsGbUPtO'
+});
 
 export const STORES = Object.freeze({
   appointments: 'appointments',
@@ -15,11 +20,14 @@ export const STORES = Object.freeze({
   outings: 'outings',
   settings: 'settings',
   outbox: 'outbox',
-  backups: 'backups'
+  backups: 'backups',
+  cloud: 'cloud',
+  activity: 'activity',
+  templates: 'templates'
 });
 
 export const SYNC_STATUSES = ['local', 'pending', 'synced', 'conflict'];
-export const ROUTES = ['home', 'agenda', 'shopping', 'tasks', 'meals', 'inventory', 'expenses', 'pets', 'outings', 'settings'];
+export const ROUTES = ['home', 'agenda', 'shopping', 'tasks', 'meals', 'inventory', 'expenses', 'pets', 'outings', 'activity', 'templates', 'settings'];
 
 export const MEMBER_IDS = Object.freeze({
   roy: '10000000-0000-4000-8000-000000000001', demy: '10000000-0000-4000-8000-000000000002',

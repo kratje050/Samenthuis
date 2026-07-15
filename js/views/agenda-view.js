@@ -9,6 +9,7 @@ import { weekRange, renderWeekCalendar } from '../components/calendar-week.js';
 import { renderDayCalendar } from '../components/calendar-day.js';
 import { addDays, addMonths, endOfMonth, formatDate, fromDateKey, startOfMonth, toDateKey } from '../utils/dates.js';
 import { validateAppointment } from '../services/validation-service.js';
+import { downloadIcs, icsToAppointments } from '../services/ics-service.js';
 import { arrayValue, bindAction, boolValue, categoryColor, consumeHashAction, e, emptyState, field, handleError, numberValue, textArea, value } from './view-helpers.js';
 
 let mode = 'today';
@@ -118,7 +119,7 @@ async function refresh() {
 export const agendaView = {
   async render() {
     const settings = appState.settings;
-    return `<section class="page-stack"><div class="page-header"><div><p class="muted">Eén gezamenlijke agenda, lokaal op dit apparaat.</p></div><button class="button" id="new-appointment">＋ Nieuwe afspraak</button></div>
+    return `<section class="page-stack"><div class="page-header"><div><p class="muted">Eén gezamenlijke agenda, offline beschikbaar en optioneel gesynchroniseerd.</p></div><div class="page-actions"><button class="button secondary" id="import-ics">Agenda importeren</button><button class="button secondary" id="export-ics">Agenda exporteren</button><button class="button" id="new-appointment">＋ Nieuwe afspraak</button><input class="sr-only" id="ics-file" type="file" accept="text/calendar,.ics"></div></div>
       <div class="segmented" aria-label="Agendaweergave">${[['today','Vandaag'],['upcoming','Komend'],['day','Dag'],['week','Week'],['month','Maand'],['list','Lijst'],['deleted','Prullenbak']].map(([key,label]) => `<button type="button" data-agenda-mode="${key}">${label}</button>`).join('')}</div>
       <div class="toolbar"><div class="field grow"><label for="agenda-search">Zoeken</label><input id="agenda-search" type="search" placeholder="Titel, locatie, categorie of notitie" value="${e(filters.query)}"></div>
         ${field('member-filter','Gezinslid',{ 'member-filter': filters.member },{ options:[{value:'',label:'Alle gezinsleden'},...settings.members.map((m)=>({value:m.id,label:m.name}))] })}
@@ -127,6 +128,20 @@ export const agendaView = {
   },
   async mount(root) {
     root.querySelector('#new-appointment').addEventListener('click', () => openAppointment());
+    root.querySelector('#export-ics').addEventListener('click', async () => { const records = await repositories.appointments.getAll(); downloadIcs(records); showToast(`${records.length} afspraak${records.length===1?'':'en'} geëxporteerd.`); });
+    root.querySelector('#import-ics').addEventListener('click', () => root.querySelector('#ics-file').click());
+    root.querySelector('#ics-file').addEventListener('change', async (event) => {
+      const file = event.target.files[0]; if (!file) return;
+      try {
+        const incoming = icsToAppointments(await file.text());
+        if (!incoming.length) throw new Error('Het bestand bevat geen bruikbare afspraken.');
+        if (!await confirmDialog({ title:'Agenda importeren?', message:`${incoming.length} afspraak${incoming.length===1?'':'en'} worden toegevoegd of bijgewerkt.`, confirmLabel:'Importeren', danger:false })) return;
+        const existing = await repositories.appointments.getAll({includeDeleted:true}); const byUid = new Map(existing.filter((item)=>item.externalUid).map((item)=>[item.externalUid,item]));
+        let created=0,updated=0;
+        for (const item of incoming) { const match=byUid.get(item.externalUid); if(match){await repositories.appointments.update(match.id,item);updated++}else{await repositories.appointments.create(item);created++} }
+        showToast(`${created} toegevoegd, ${updated} bijgewerkt.`); await refresh();
+      } catch(error) { handleError(error); } finally { event.target.value=''; }
+    });
     root.querySelectorAll('[data-agenda-mode]').forEach((button) => button.addEventListener('click', async () => { mode = button.dataset.agendaMode; if (mode === 'today') cursor = new Date(); await refresh(); }));
     root.querySelector('#agenda-search').addEventListener('input', async (event) => { filters.query = event.target.value; await refresh(); });
     root.querySelector('[name="member-filter"]').addEventListener('change', async (event) => { filters.member = event.target.value; await refresh(); });

@@ -6,14 +6,16 @@ const configurations = {
   inventory: { type: 'Voorraadproduct', title: (r) => r.productName },
   expenses: { type: 'Uitgave', title: (r) => r.description },
   pets: { type: 'Huisdier', title: (r) => r.name },
-  outings: { type: 'Uitje', title: (r) => r.name }
+  outings: { type: 'Uitje', title: (r) => r.name },
+  templates: { type: 'Sjabloon', title: (r) => r.title }
 };
 
 export class TrashService {
   constructor(repositories) { this.repositories = repositories; }
 
   async getDeletedItems() {
-    const groups = await Promise.all(Object.entries(configurations).map(async ([entity, config]) => {
+    const available = Object.entries(configurations).filter(([entity]) => this.repositories[entity]);
+    const groups = await Promise.all(available.map(async ([entity, config]) => {
       const records = await this.repositories[entity].getAll({ includeDeleted: true });
       return records.filter((record) => record.deletedAt).map((record) => ({
         id: record.id, entity, type: config.type, title: config.title(record) || config.type,

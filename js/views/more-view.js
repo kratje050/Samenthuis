@@ -4,6 +4,8 @@ const items = [
   ['expenses','€','Uitgaven','Houd handmatig de maand bij.'],
   ['pets','♣','Huisdieren','Medicatie, vaccinaties en dierenarts.'],
   ['outings','⌖','Uitjes','Bewaar plannen, vakanties en ideeën.'],
+  ['activity','↻','Activiteit','Bekijk wie iets heeft gewijzigd.'],
+  ['templates','▧','Sjablonen','Herbruik boodschappen-, taken- en inpaklijsten.'],
   ['settings','⚙','Instellingen','Gezinsleden, back-up en voorkeuren.']
 ];
 

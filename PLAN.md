@@ -2,16 +2,17 @@
 
 ## Doel en grenzen
 
-Samen Thuis is een volledig gratis, Nederlandstalige, mobile-first gezins-PWA. Fase 1 werkt uitsluitend lokaal: alle gezinsgegevens staan in IndexedDB op het huidige apparaat. Er zijn geen accounts, externe API's, advertenties, analytics, cloudopslag of betaalde diensten. `localStorage` bevat alleen kleine interfacevoorkeuren.
+Samen Thuis is een gratis, Nederlandstalige, mobile-first gezins-PWA. IndexedDB blijft op ieder apparaat de offline bron voor de UI. Versie 1.3 bevat optionele accounts, centrale Supabase-synchronisatie en Web Push; zonder account werkt de app nog steeds volledig lokaal. `localStorage` bevat alleen kleine interfacevoorkeuren en het apparaat-ID. Sessies staan in een aparte IndexedDB-store.
 
 ## Architectuur
 
-De app bestaat uit vier duidelijke lagen:
+De app bestaat uit vijf duidelijke lagen:
 
 1. **Presentatie** – routes, views en herbruikbare modals, meldingen en agendaonderdelen. Views praten nooit rechtstreeks met IndexedDB.
 2. **Services** – validatie, herhaling, agendaquery's, notificaties en back-up/import.
 3. **Repositories** – één repository per domein met een uniforme API (`getAll`, `getById`, `create`, `update`, `softDelete`, `restore`). Mutaties schrijven record en outbox-item in één IndexedDB-transactie.
-4. **Opslag** – database-opening, schema en migraties. IndexedDB is de enige bron van waarheid.
+4. **Opslag** – database-opening, schema en migraties. IndexedDB is de directe bron voor de UI; Supabase is na aanmelding de gedeelde gezinsbron.
+5. **Synchronisatie** – de outbox-adapter pusht lokale mutaties via beveiligde RPC's en past centrale records zonder nieuwe outboxmutatie lokaal toe.
 
 ES-modules houden onderdelen los gekoppeld. `state.js` bevat alleen runtime-status en een eventbus. `router.js` beheert hashroutes. De service worker cachet uitsluitend lokale appbestanden en gebruikt een versiegebonden cache met updatecontrole.
 
@@ -41,8 +42,11 @@ Iedere mutatie levert daarnaast een outbox-record op met `changeId`, `entityType
 - `settings` – appinstellingen, gezinsleden en categorieën;
 - `outbox` – lokale wijzigingswachtrij;
 - `backups` – automatische veiligheidskopie vóór import.
+- `activity` – atomair vastgelegde gezinsactiviteit;
+- `templates` – herbruikbare boodschappen-, taken- en inpaklijsten;
+- `cloud` – lokale sessie- en synchronisatiestatus, bewust buiten exports.
 
-Indexen bestaan op veelgebruikte datum-, status-, categorie- en wijzigingsvelden. Queries blijven in fase 1 eenvoudig en betrouwbaar; agenda-occurrences worden voor het zichtbare datumbereik door de agenda-service gegenereerd.
+Indexen bestaan op veelgebruikte datum-, status-, categorie- en wijzigingsvelden. Lokale queries blijven eenvoudig en betrouwbaar; agenda-occurrences worden voor het zichtbare datumbereik door de agenda-service gegenereerd.
 
 ## Standaardgegevens
 
@@ -54,7 +58,7 @@ Een afspraak blijft één bronrecord. De recurrence-service projecteert occurren
 
 ## Herinneringen
 
-De reminder-service controleert tijdens gebruik periodiek welke herinneringen verschuldigd zijn. Met toestemming gebruikt de app browsernotificaties; anders verschijnen blijvende waarschuwingen in de app. Service workers kunnen zonder externe pushserver niet gegarandeerd op een volledig gesloten apparaat wakker worden; dit wordt transparant in de instellingen uitgelegd.
+De reminder-service controleert tijdens gebruik periodiek welke herinneringen verschuldigd zijn. Met toestemming gebruikt de app browsernotificaties; anders verschijnen blijvende waarschuwingen in de app. Voor een gekoppeld gezin kan een Supabase Edge Function standaard Web Push versturen wanneer de PWA gesloten is. Supabase Cron controleert iedere minuut, een unieke afleveringssleutel voorkomt dubbele meldingen en verlopen browserinschrijvingen worden automatisch gedeactiveerd. De VAPID-privésleutel en croncode blijven uitsluitend in RLS-afgeschermde servertabellen.
 
 ## Gebruiksgemak en herstel
 
@@ -64,7 +68,7 @@ De centrale prullenbak verzamelt soft-deleted records uit alle domeinrepositorie
 
 ## Back-up en herstel
 
-Export leest alle stores en maakt één versieerbaar JSON-bestand. Import valideert appnaam, schema-versie, verplichte secties en UUID's. Vóór iedere import wordt een volledige veiligheidskopie in `backups` opgeslagen. Vervangen wist pas na expliciete bevestiging de domeinstores; samenvoegen kiest per ID het record met de hoogste versie en daarna de nieuwste `updatedAt`. Geïmporteerde wijzigingen worden als lokaal/pending geregistreerd zodat een latere synchronisatielaag ze kan verwerken.
+Export leest alle domeinstores en maakt één versieerbaar JSON-bestand. Authsessies blijven bewust buiten back-ups. Import valideert appnaam, schema-versie, verplichte secties en UUID's. Vóór iedere import wordt een volledige veiligheidskopie in `backups` opgeslagen. Vervangen wist pas na expliciete bevestiging de domeinstores; samenvoegen kiest per ID het record met de hoogste versie en daarna de nieuwste `updatedAt`. Geïmporteerde wijzigingen worden als pending geregistreerd zodat de actieve synchronisatielaag ze kan verwerken.
 
 ## PWA en cachebeleid
 
@@ -86,9 +90,9 @@ Semantische HTML, gekoppelde labels, toetsenbordbediening, zichtbare focus, live
 
 ## Fase 2: centrale database en automatische synchronisatie
 
-Fase 2 voegt een **losse sync-adapter** naast de bestaande repositories toe; views, services en lokale schema's blijven intact. Een gratis centrale database kan bijvoorbeeld zelf gehost worden of binnen een op dat moment passende gratis limiet draaien. De concrete aanbieder wordt pas in fase 2 gekozen, zodat fase 1 geen externe afhankelijkheid krijgt.
+Fase 2 is in versie 1.3 als **losse sync-adapter** naast de bestaande repositories geïmplementeerd; views en domeinopslag blijven intact. Supabase levert Auth, PostgreSQL, Cron en één Edge Function voor Web Push. Alleen de openbare publishable key staat in de client. De secret- en service-role keys worden nergens in de statische website gebruikt.
 
-Het toekomstige model bevat een `familyId` op serverniveau en accounts voor Roy en Demy die lid zijn van één gezamenlijk gezinsaccount. Een eenmalige, kort geldige uitnodigingscode koppelt een tweede account/apparaat veilig aan het gezin. De beveiligde API bepaalt altijd op basis van de sessie tot welk gezin een record behoort; een client mag nooit zelf willekeurig `familyId` kiezen. Wachtwoorden worden alleen gehasht opgeslagen, sessies gebruiken korte toegangsduur plus veilige rotatie en alle communicatie loopt via HTTPS.
+Het servermodel bestaat uit `families`, `family_members` en `family_records`. Accounts voor Roy en Demy kunnen via een gehashte, zeven dagen geldige en eenmalig bruikbare uitnodigingscode lid worden van één gezamenlijk gezin. Beveiligde RPC-functies bepalen het `familyId` uitsluitend via `auth.uid()`. Wachtwoorden worden alleen door Supabase Auth verwerkt, sessies gebruiken korte toegangstokens plus refresh-rotatie en alle communicatie loopt via HTTPS.
 
 De sync-engine verwerkt de bestaande outbox:
 
@@ -97,9 +101,9 @@ De sync-engine verwerkt de bestaande outbox:
 3. bij het `online`-event;
 4. kort na iedere lokale wijziging, met debounce en retries.
 
-Per wijziging stuurt de client record-ID, operatie, versie, wijzigingstijd en apparaat-ID. De server vergelijkt versies en een server-revisie. Onafhankelijke veldwijzigingen kunnen automatisch worden samengevoegd; gelijktijdige wijzigingen aan hetzelfde veld worden als conflict teruggegeven. Verwijdermarkeringen blijven tombstones. De client bewaart conflicten lokaal met `syncStatus: conflict` en toont een expliciete keuze tussen lokale, centrale of handmatig samengevoegde gegevens. Na serverbevestiging wordt een outbox-item `processed: true` en het record `synced`.
+Per wijziging stuurt de client record-ID, versie, wijzigingstijd, tombstone, payload en apparaat-ID. De server kiest eerst de hoogste versie en bij een gelijke versie de nieuwste wijzigingstijd. Een gelijktijdige afwijkende versie wordt als conflict teruggegeven en deterministisch samengevoegd; de synchronisatiestatus meldt dit. Na serverbevestiging wordt ieder bijbehorend outbox-item `processed: true` en het lokale record `synced`.
 
-De API past autorisatie per gezin toe op iedere query en mutatie, gebruikt rate limiting, invoervalidatie, auditvelden, CSRF-bescherming waar van toepassing en intrekbare sessies. Gegevensscheiding wordt zowel in applicatielogica als databasebeleid afgedwongen. Uitnodigingscodes worden gehasht, verlopen snel en zijn eenmalig. Automatische synchronisatie wordt pas geactiveerd na expliciete aanmelding; de offline app blijft bruikbaar bij uitval van netwerk of server.
+Row Level Security past autorisatie per gezin toe op iedere leesquery. Schrijfbewerkingen lopen uitsluitend via gecontroleerde RPC-functies met lidmaatschapscontrole, invoervalidatie en auditvelden. Automatische synchronisatie wordt pas geactiveerd na expliciete aanmelding; bij netwerk- of serveruitval blijft de offline app bruikbaar en blijft de outbox ongewijzigd wachten.
 
 ## Oplevervolgorde
 

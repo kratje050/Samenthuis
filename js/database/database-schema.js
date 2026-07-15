@@ -11,14 +11,17 @@ const indexes = {
   outings: [['date', 'date'], ['category', 'category'], ['favorite', 'favorite'], ['deletedAt', 'deletedAt']],
   settings: [['updatedAt', 'updatedAt']],
   outbox: [['processed', 'processed'], ['changedAt', 'changedAt'], ['entityType', 'entityType'], ['recordId', 'recordId']],
-  backups: [['createdAt', 'createdAt']]
+  backups: [['createdAt', 'createdAt']],
+  cloud: [['updatedAt', 'updatedAt']],
+  activity: [['occurredAt', 'occurredAt'], ['entityType', 'entityType'], ['actorId', 'actorId'], ['deletedAt', 'deletedAt']],
+  templates: [['templateType', 'templateType'], ['updatedAt', 'updatedAt'], ['deletedAt', 'deletedAt']]
 };
 
 export function createSchema(database, transaction) {
   Object.values(STORES).forEach((storeName) => {
     let store;
     if (!database.objectStoreNames.contains(storeName)) {
-      const keyPath = storeName === STORES.outbox ? 'changeId' : storeName === STORES.backups ? 'backupId' : 'id';
+      const keyPath = storeName === STORES.outbox ? 'changeId' : storeName === STORES.backups ? 'backupId' : storeName === STORES.cloud ? 'key' : 'id';
       store = database.createObjectStore(storeName, { keyPath });
     } else {
       store = transaction.objectStore(storeName);

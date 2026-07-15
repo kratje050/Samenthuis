@@ -21,8 +21,12 @@ export function validateBackup(backup, { appName, databaseVersion }) {
   for (const field of requiredArrays) if (!Array.isArray(backup[field])) throw new Error(`De back-up mist het verplichte onderdeel “${field}”.`);
   if (!backup.instellingen || typeof backup.instellingen !== 'object') throw new Error('De back-up bevat geen instellingen.');
   if (!isUuid(backup.instellingen.id)) throw new Error('Het instellingenrecord in de back-up heeft een ongeldige ID.');
-  const allRecords = requiredArrays.filter((field) => field !== 'outbox').flatMap((field) => backup[field]);
+  for (const optional of ['activiteiten', 'sjablonen']) if (backup[optional] !== undefined && !Array.isArray(backup[optional])) throw new Error(`Het onderdeel “${optional}” is ongeldig.`);
+  const recordSections = [...requiredArrays.filter((field) => field !== 'outbox'), ...['activiteiten', 'sjablonen'].filter((field) => Array.isArray(backup[field]))];
+  const allRecords = recordSections.flatMap((field) => backup[field]);
   const invalid = allRecords.find((record) => !isUuid(record.id));
   if (invalid) throw new Error('De back-up bevat één of meer records met een ongeldige ID.');
+  const invalidOutbox = backup.outbox.find((item) => !isUuid(item.changeId) || !isUuid(item.recordId));
+  if (invalidOutbox) throw new Error('De back-up bevat een ongeldige wijziging in de outbox.');
   return true;
 }

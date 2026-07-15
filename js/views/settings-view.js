@@ -1,4 +1,4 @@
-import { appState, refreshSettings, repositories } from '../state.js';
+import { appState, refreshSettings, repositories, services } from '../state.js';
 import { openModal } from '../components/modal.js';
 import { confirmDialog } from '../components/confirm-dialog.js';
 import { showToast } from '../components/toast.js';
@@ -9,6 +9,7 @@ import { notificationsSupported, requestNotificationPermission } from '../servic
 import { APP_VERSION, DATABASE_VERSION } from '../config.js';
 import { e, field, handleError, value } from './view-helpers.js';
 import { TrashService } from '../services/trash-service.js';
+import { cloudStatusLabel, openCloudDialog } from '../components/cloud-dialog.js';
 
 const trashService = new TrashService(repositories);
 
@@ -29,6 +30,40 @@ function backupStatusText() {
   if (!status.date) return 'Nog geen downloadbare back-up gemaakt.';
   const relative = status.daysAgo === 0 ? 'vandaag' : status.daysAgo === 1 ? 'gisteren' : `${status.daysAgo} dagen geleden`;
   return `Laatste downloadbare back-up: ${relative} (${status.date.toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'})}).`;
+}
+
+async function toggleNotifications(button) {
+  button.disabled = true;
+  try {
+    if (globalThis.Notification?.permission === 'default') {
+      const permission = await requestNotificationPermission();
+      if (permission !== 'granted') throw new Error('Notificatietoestemming is niet gegeven.');
+    }
+    const status = await services.push.status();
+    if (status.subscribed) {
+      await services.push.disable();
+      await repositories.settings.save({ notifications: false });
+      await refreshSettings();
+      button.textContent = appState.cloud.family ? 'Pushmeldingen inschakelen' : 'Lokale meldingen toestaan';
+      showToast('Pushmeldingen uitgeschakeld.');
+      return;
+    }
+    if (appState.cloud.family) {
+      await services.push.enable();
+      await repositories.settings.save({ notifications: true });
+      await refreshSettings();
+      button.textContent = 'Pushmeldingen uitschakelen';
+      showToast('Pushmeldingen ingeschakeld.');
+      return;
+    }
+    const permission = await requestNotificationPermission();
+    if (permission !== 'granted') throw new Error(permission === 'unsupported' ? 'Notificaties worden niet ondersteund.' : 'Notificatietoestemming is niet gegeven.');
+    await repositories.settings.save({ notifications: true });
+    await refreshSettings();
+    button.textContent = 'Lokale meldingen zijn toegestaan';
+    showToast('Lokale notificaties toegestaan.');
+  } catch (error) { handleError(error); }
+  finally { button.disabled = false; }
 }
 
 async function updateTrashCount() {
@@ -59,22 +94,24 @@ async function openTrash() {
 }
 
 export const settingsView={
-  async render(){const settings=appState.settings;const deletedItems=await trashService.getDeletedItems();const categoryLabels={appointments:'Agenda',shopping:'Boodschappen',expenses:'Uitgaven',outings:'Uitjes'};return `<section class="page-stack">
+  async render(){const settings=appState.settings;const [deletedItems,pushStatus]=await Promise.all([trashService.getDeletedItems(),services.push.status()]);const categoryLabels={appointments:'Agenda',shopping:'Boodschappen',expenses:'Uitgaven',outings:'Uitjes'};const notificationLabel=pushStatus.subscribed?'Pushmeldingen uitschakelen':appState.cloud.family?'Pushmeldingen inschakelen':globalThis.Notification?.permission==='granted'?'Lokale meldingen zijn toegestaan':'Lokale meldingen toestaan';return `<section class="page-stack">
     <form id="general-settings" class="card"><div class="card-header"><h2>Weergave en voorkeuren</h2><button class="button small" type="submit">Opslaan</button></div><div class="form-grid">${field('theme','Thema',{theme:settings.theme},{options:[{value:'light',label:'Lichte modus'},{value:'dark',label:'Donkere modus'},{value:'system',label:'Systeemthema'}]})}${field('greetingName','Naam in begroeting',settings,{options:settings.members.map(m=>({value:m.name,label:m.name}))})}${field('dateFormat','Datumformaat',settings,{options:[{value:'dd-mm-yyyy',label:'DD-MM-JJJJ'},{value:'yyyy-mm-dd',label:'JJJJ-MM-DD'}]})}${field('timeFormat','Tijdformaat',settings,{options:[{value:'24h',label:'24 uur'},{value:'12h',label:'12 uur'}]})}${field('currency','Valuta',settings,{options:[{value:'EUR',label:'Euro (€)'},{value:'USD',label:'Dollar ($)'},{value:'GBP',label:'Pond (£)'}]})}${field('weekStartsOn','Agendaweek begint op',{weekStartsOn:String(settings.weekStartsOn??1)},{options:[{value:'1',label:'Maandag'},{value:'0',label:'Zondag'}]})}</div></form>
     <form id="member-settings" class="page-stack"><div class="page-header"><h2>Gezinsleden</h2><button class="button small" type="submit">Gezinsleden opslaan</button></div><div class="content-grid two">${memberEditor()}</div></form>
     <form id="category-settings" class="card"><div class="card-header"><div><h2>Categorieën</h2><p class="small muted">Eén categorie per regel. Wijzig, voeg toe of verwijder een regel.</p></div><button class="button small" type="submit">Categorieën opslaan</button></div><div class="form-grid">${Object.entries(settings.categories).map(([key,list])=>`<div class="field"><label for="categories-${key}">${categoryLabels[key]}</label><textarea id="categories-${key}" name="categories-${key}" rows="7">${e(list.join('\n'))}</textarea></div>`).join('')}</div></form>
-    <section class="card"><h2>Notificaties</h2><p class="muted">Herinneringen verschijnen tijdens gebruik altijd in de app. Met browsertoestemming kan Samen Thuis ook een lokale PWA-notificatie tonen. Een volledig gesloten browser kan zonder online pushdienst niet betrouwbaar worden gewekt.</p><button class="button secondary" id="notification-permission" ${notificationsSupported()?'':'disabled'}>${globalThis.Notification?.permission==='granted'?'Notificaties zijn toegestaan':'Notificaties toestaan'}</button></section>
+    <section class="card"><div class="card-header"><div><h2>Gezinsaccount en synchronisatie</h2><p class="muted">${e(cloudStatusLabel())}</p></div><button class="button" id="open-cloud">${appState.cloud.family?'Sync beheren':services.auth.isSignedIn?'Gezin koppelen':'Inloggen'}</button></div><p class="small muted">Met een gezinsaccount worden afspraken en alle andere onderdelen automatisch tussen telefoons bijgewerkt. IndexedDB blijft de offline kopie en wijzigingen wachten veilig wanneer er geen internet is.</p>${appState.cloud.family?`<p><span class="badge low">${e(appState.cloud.family.family_name)}</span> <span class="badge">${appState.cloud.sync.pending} wachtend</span></p>`:''}</section>
+    <section class="card"><h2>Notificaties</h2><p class="muted">Herinneringen verschijnen tijdens gebruik altijd in de app. Met een gekoppeld gezinsaccount kan Samen Thuis via Web Push ook een melding sturen wanneer de geïnstalleerde PWA gesloten is. Zonder account blijven lokale PWA-notificaties beschikbaar zolang de browser actief kan worden gewekt.</p><p class="small muted">Pushmeldingen hebben internet nodig; afspraken en in-app herinneringen blijven offline werken.</p><button class="button secondary" id="notification-permission" ${notificationsSupported()?'':'disabled'}>${e(notificationLabel)}</button></section>
     <section class="card"><div class="card-header"><div><h2>Centrale prullenbak</h2><p class="muted" id="trash-count">${deletedItems.length} verwijderd item${deletedItems.length === 1 ? '' : 's'}</p></div><button class="button secondary" id="open-trash">Prullenbak openen</button></div><p class="small muted">Verwijderde afspraken, boodschappen, taken en andere gegevens blijven lokaal bewaard en kunnen hier worden hersteld.</p></section>
     <section class="card"><h2>Back-up en herstel</h2><p class="muted">Exporteer regelmatig één volledig JSON-bestand. Bij import wordt eerst automatisch een lokale veiligheidskopie gemaakt.</p><p id="backup-status" class="badge ${getBackupStatus().stale?'high':'low'}">${e(backupStatusText())}</p><div class="page-actions"><button class="button" id="export-data">Back-up downloaden</button><label class="button secondary" for="import-file">Back-up kiezen</label><input class="sr-only" id="import-file" type="file" accept="application/json,.json"></div></section>
-    <section class="card"><h2>Installatie en lokale gegevens</h2><p class="muted">Alle gegevens staan in IndexedDB op dit apparaat. Wissen van browsergegevens kan ze verwijderen.</p><div class="page-actions"><button class="button secondary" id="install-app" hidden>App installeren</button><button class="button danger" id="clear-data">Alle lokale gegevens verwijderen</button></div></section>
-    <section class="card"><h2>Ontwikkelaarsinformatie</h2><dl class="small"><dt>Appversie</dt><dd>${APP_VERSION}</dd><dt>Databaseversie</dt><dd>${DATABASE_VERSION}</dd><dt>Opslag</dt><dd>IndexedDB, volledig lokaal</dd><dt>Online diensten</dt><dd>Geen</dd><dt>Fase 2</dt><dd>Outbox en synchronisatievelden voorbereid; synchronisatie is nog niet actief.</dd></dl></section>
+    <section class="card"><h2>Installatie en lokale gegevens</h2><p class="muted">Alle gegevens blijven als offline kopie in IndexedDB op dit apparaat staan. Wissen van browsergegevens kan die lokale kopie verwijderen.</p><div class="page-actions"><button class="button secondary" id="install-app" hidden>App installeren</button><button class="button danger" id="clear-data">Alle lokale gegevens verwijderen</button></div></section>
+    <section class="card"><h2>Ontwikkelaarsinformatie</h2><dl class="small"><dt>Appversie</dt><dd>${APP_VERSION}</dd><dt>Databaseversie</dt><dd>${DATABASE_VERSION}</dd><dt>Lokale opslag</dt><dd>IndexedDB, offline-first</dd><dt>Centrale dienst</dt><dd>Supabase met Row Level Security</dd><dt>Synchronisatie</dt><dd>Outboxgestuurd bij openen, voorgrond, internetherstel en iedere wijziging.</dd></dl></section>
   </section>`},
   async mount(root){
     root.querySelector('#general-settings').addEventListener('submit',event=>{event.preventDefault();saveGeneral(event.currentTarget).catch(handleError)});root.querySelector('#member-settings').addEventListener('submit',event=>{event.preventDefault();saveMembers(event.currentTarget).catch(handleError)});root.querySelector('#category-settings').addEventListener('submit',event=>{event.preventDefault();saveCategories(event.currentTarget).catch(handleError)});
-    root.querySelector('#notification-permission').addEventListener('click',async()=>{const permission=await requestNotificationPermission();if(permission==='granted'){await repositories.settings.save({notifications:true});await refreshSettings();showToast('Notificaties toegestaan.')}else showToast(permission==='unsupported'?'Notificaties worden niet ondersteund.':'Notificatietoestemming is niet gegeven.','error')});
+    root.querySelector('#notification-permission').addEventListener('click',(event)=>toggleNotifications(event.currentTarget));
     root.querySelector('#open-trash').addEventListener('click',()=>openTrash().catch(handleError));
+    root.querySelector('#open-cloud').addEventListener('click',openCloudDialog);
     root.querySelector('#export-data').addEventListener('click',async()=>{await downloadBackup();const status=root.querySelector('#backup-status');status.textContent=backupStatusText();status.className='badge low';showToast('Back-up gemaakt.')});root.querySelector('#import-file').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{const backup=await parseBackupFile(file);openImportDialog(backup)}catch(error){handleError(error)}finally{event.target.value=''}});
-    root.querySelector('#clear-data').addEventListener('click',async()=>{if(await confirmDialog({title:'Alle lokale gegevens verwijderen?',message:'Afspraken, boodschappen, taken, maaltijden, voorraad, uitgaven, huisdieren, uitjes en instellingen worden van dit apparaat verwijderd. Maak eerst een back-up als je ze wilt bewaren.',confirmLabel:'Alles verwijderen'})){await clearLocalData();showToast('Lokale gegevens verwijderd.');setTimeout(()=>location.reload(),700)}});
+    root.querySelector('#clear-data').addEventListener('click',async()=>{if(await confirmDialog({title:'Alle lokale gegevens verwijderen?',message:'Afspraken, boodschappen, taken, maaltijden, voorraad, uitgaven, huisdieren, uitjes, sjablonen, activiteit en instellingen worden van dit apparaat verwijderd. Maak eerst een back-up als je ze wilt bewaren.',confirmLabel:'Alles verwijderen'})){await services.push.disable().catch(()=>{});await services.auth.signOut().catch(()=>{});await clearLocalData();showToast('Lokale gegevens verwijderd.');setTimeout(()=>location.reload(),700)}});
     const installButton=root.querySelector('#install-app');const makeInstallable=()=>{installButton.hidden=!window.samenThuisInstallPrompt};makeInstallable();window.addEventListener('samen-thuis-install-ready',makeInstallable,{once:true});installButton.addEventListener('click',async()=>{if(!window.samenThuisInstallPrompt)return;await window.samenThuisInstallPrompt.prompt();window.samenThuisInstallPrompt=null;installButton.hidden=true})
   }
 };

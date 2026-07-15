@@ -2,12 +2,13 @@
 
 Samen Thuis is een complete Nederlandstalige gezinsplanner voor Roy, Demy, Miley en Navy. De app combineert één gezamenlijke agenda met boodschappen, huishoudelijke taken, een maaltijdplanner, voorraad, uitgaven, huisdieren en uitjes.
 
-Versie 1 werkt volledig lokaal en offline. Er is geen account, abonnement, advertentie, externe database, betaalde API of cloudverbinding nodig. Na de eerste online laadbeurt kan de PWA zonder internet worden geopend. Gegevens worden in deze fase **niet automatisch tussen telefoons gesynchroniseerd**.
+Versie 1.3 is offline-first: alle schermen blijven IndexedDB gebruiken en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is. Zonder account blijft de app volledig lokaal bruikbaar.
 
 ## Mogelijkheden
 
 - gezamenlijke gezinsagenda met dag-, week-, maand-, vandaag-, komende- en lijstweergave;
-- herhalende afspraken, lokale herinneringen, zoeken, filters, kleuren, kopiëren, afronden, soft delete en herstel;
+- herhalende afspraken, lokale en optionele Web Push-herinneringen, zoeken, filters, kleuren, kopiëren, afronden, soft delete en herstel;
+- agenda importeren en exporteren als standaard `.ics`-bestand voor onder meer Google Agenda, Apple Agenda en Outlook;
 - boodschappenlijst met categorieën, winkels, sortering, afvinken en bulkverwijdering;
 - herhalende huishoudelijke taken met historie en automatische volgende taak;
 - weekplanner, recepten, favorieten en ingrediënten naar boodschappen;
@@ -18,10 +19,14 @@ Versie 1 werkt volledig lokaal en offline. Er is geen account, abonnement, adver
 - zoeken vanuit ieder scherm over afspraken, boodschappen, taken, maaltijden, voorraad, uitgaven, huisdieren en uitjes;
 - een vaste knop **Snel toevoegen** voor afspraken, boodschappen, taken, maaltijden en uitgaven;
 - één centrale prullenbak in Instellingen om soft-deleted gegevens uit alle onderdelen te herstellen;
+- gezinsactiviteit met wie wat heeft toegevoegd, aangepast of verwijderd;
+- herbruikbare boodschappen-, taken- en inpaklijsten via sjablonen;
 - een back-upstatus op het dashboard en in Instellingen, met een waarschuwing wanneer de laatste downloadbare back-up ouder wordt;
 - aanpasbare gezinsleden, kleuren, profieliconen, categorieën en thema's;
 - volledige JSON-back-up, gecontroleerde import, samenvoegen of vervangen;
 - installeerbare PWA met lokale app-iconen, offline cache en updatecontrole.
+- optionele e-mailaccounts, één gezamenlijk gezin, eenmalige uitnodigingscodes en automatische synchronisatie tussen telefoons;
+- beveiligde centrale opslag met Row Level Security: een ingelogde gebruiker kan uitsluitend gegevens van het eigen gezin lezen.
 
 ## Snel lokaal starten
 
@@ -70,12 +75,26 @@ Alle belangrijke gegevens staan in IndexedDB van de browser, gekoppeld aan de ex
 Dit betekent:
 
 - gegevens op `http://localhost:8080` zijn gescheiden van dezelfde app op een gepubliceerde HTTPS-website;
-- een andere browser of telefoon heeft in fase 1 een eigen lokale dataset;
+- een andere browser of telefoon heeft zonder gezinsaccount een eigen lokale dataset;
+- na inloggen en koppelen aan hetzelfde gezin worden lokale wijzigingen automatisch samengevoegd met de centrale dataset;
 - privé- of incognitovensters kunnen gegevens na sluiten verwijderen;
 - het wissen van sitegegevens, browsergegevens of IndexedDB kan alle lokale gezinsgegevens verwijderen;
 - verwijderen en opnieuw installeren van de PWA kan per browser/platform eveneens gevolgen voor lokale opslag hebben.
 
 Maak daarom regelmatig een back-up.
+
+## Gezinsaccount en synchronisatie
+
+1. Open de app via `https://thuissamen.netlify.app`.
+2. Tik op het wolkje bovenaan of open **Meer → Instellingen → Gezinsaccount en synchronisatie**.
+3. Maak voor Roy het eerste account en bevestig zo nodig de e-mail.
+4. Log in, kies **Nieuw gezin maken** en bewaar de getoonde uitnodigingscode.
+5. Maak op de tweede telefoon een account voor Demy en kies **Met code aansluiten**.
+6. Vanaf dat moment synchroniseert de app bij openen, terugkeren naar de voorgrond, internetherstel en kort na iedere wijziging.
+
+Een uitnodigingscode is zeven dagen geldig en kan één keer worden gebruikt. Alleen de beheerder kan een nieuwe code maken; een nieuwe code maakt de vorige direct ongeldig. Wachtwoorden worden uitsluitend door Supabase Auth verwerkt en staan niet in de appdatabase. Toegangssessies staan lokaal in IndexedDB, niet in de back-up.
+
+Bij netwerk- of Supabase-uitval blijft iedere handeling lokaal werken. Wachtende mutaties blijven in de outbox en worden later opnieuw aangeboden. Bij een gelijktijdige wijziging op twee telefoons detecteert de server het conflict en kiest hij deterministisch de hoogste versie en daarna de nieuwste wijzigingstijd.
 
 ## Back-up maken
 
@@ -110,6 +129,18 @@ De app kan zonder servercode op iedere statische HTTPS-host worden geplaatst. Ee
 
 De app gebruikt relatieve paden en werkt daardoor ook onder een projectpad zoals `https://naam.github.io/samen-thuis/`. GitHub beschrijft Pages als hosting voor statische HTML-, CSS- en JavaScriptbestanden en vermeldt de actuele beschikbaarheid per abonnement in de [officiële GitHub Pages-documentatie](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages). Controleer vóór publicatie altijd de actuele voorwaarden. Let op: een openbare website maakt de appbestanden openbaar, maar niet de IndexedDB-gezinsgegevens; die blijven in de browser van het apparaat.
 
+### Netlify en GitHub
+
+Voor deze repository is geen buildcommando nodig. Gebruik op Netlify branch `main`, een lege base directory en publish directory `.`. `netlify.toml` legt deze instelling en de beveiligingsheaders vast. Iedere push naar `main` start automatisch een nieuwe Netlify-deployment.
+
+### Supabase eenmalig inrichten
+
+Het versiebeheer bevat [supabase/schema.sql](./supabase/schema.sql). Voer dit bestand één keer volledig uit in de SQL Editor van het gekozen Supabase-project. Het script maakt de tabellen, indexen, RLS-policies en uitsluitend voor ingelogde gebruikers beschikbare RPC-functies.
+
+Stel daarna bij **Authentication → URL Configuration** de Site URL in op `https://thuissamen.netlify.app` en voeg die URL ook toe aan Redirect URLs. Voor lokaal testen kan `http://localhost:8080/**` als extra redirect worden toegevoegd. De website bevat alleen de openbare Supabase publishable key; plaats nooit een secret key of service-role key in HTML of JavaScript.
+
+Voor meldingen terwijl de PWA gesloten is staat de Edge Function in `supabase/functions/send-reminders`. Implementeer die functie met JWT-controle uitgeschakeld zoals vastgelegd in `supabase/config.toml`; de functie controleert zelf gebruikerssessies en beveiligt de cronactie met een servercode. `schema.sql` activeert Supabase Cron en roept de functie iedere minuut aan. VAPID-sleutels worden bij het eerste gebruik binnen de Edge Function gegenereerd: de privésleutel blijft in een RLS-afgeschermde tabel en komt nooit in de browsercode terecht.
+
 ## Tests uitvoeren
 
 Pure datum-, recurrence-, kalender- en back-upvalidatietests:
@@ -136,6 +167,7 @@ De globale zoekfunctie kan ook met `Ctrl+K` (Windows/Linux) of `⌘K` (macOS) wo
 - IndexedDB met versieerbaar schema en migraties;
 - repositories als enige schrijfroute voor gewone domeinmutaties;
 - atomische outboxregistratie naast ieder gewijzigd record;
+- een losse Supabase-adapter die de outbox verwerkt en centrale records zonder tweede lokale mutatie toepast;
 - UUID's, versies, apparaat-ID's, wijzigingstijden en synchronisatiestatus op ieder domeinrecord;
 - hashrouter voor betrouwbare statische hosting en offline navigatie;
 - service worker en webmanifest zonder externe runtime-assets;
@@ -143,27 +175,18 @@ De globale zoekfunctie kan ook met `Ctrl+K` (Windows/Linux) of `⌘K` (macOS) wo
 
 De volledige architectuur en ontwerpkeuzes staan in [PLAN.md](./PLAN.md).
 
-## Voorbereiding op fase 2
+## Fase 2 is geactiveerd
 
-Online synchronisatie is bewust nog niet geïmplementeerd. De lokale opslagstructuur is er wel op voorbereid:
+De centrale synchronisatielaag is toegevoegd zonder de schermen of lokale opslag opnieuw te bouwen. Ieder record behoudt UUID, versie, apparaat-ID, wijzigingstijd en soft-delete-tombstone. RPC-functies leiden het gezin altijd af uit de ingelogde sessie; de browser mag geen willekeurige `familyId` voor een mutatie kiezen. De app gebruikt geen geheime databasekey.
 
-- ieder record heeft syncmetadata en een oplopende versie;
-- iedere create, update en soft delete schrijft een outbox-item;
-- views gebruiken services en repositories, niet rechtstreeks IndexedDB;
-- een latere sync-adapter kan de outbox verwerken zonder de schermen of domeinopslag opnieuw te bouwen;
-- tombstones (`deletedAt`) blijven beschikbaar voor synchronisatie van verwijderingen;
-- conflicten kunnen later via `syncStatus: conflict` worden teruggekoppeld.
+## Privacy en beperkingen
 
-Het hoofdstuk **Fase 2: centrale database en automatische synchronisatie** in `PLAN.md` beschrijft accounts voor Roy en Demy, het gezamenlijke gezinsaccount, uitnodigingscodes, syncmomenten, conflictbehandeling, een beveiligde API, gegevensscheiding en sessie- en wachtwoordbeveiliging.
-
-## Privacy en beperkingen van fase 1
-
-- Er wordt niets naar een externe dienst gestuurd.
+- Zonder gezinsaccount wordt niets naar Supabase gestuurd. Na expliciet inloggen worden gezinsrecords beveiligd centraal opgeslagen om meerdere telefoons te synchroniseren.
 - Er is geen bankkoppeling en geen achtergrondtracking.
 - Browsernotificaties werken alleen na toestemming.
-- Zonder online pushdienst kan een browser die volledig is afgesloten niet op ieder platform betrouwbaar voor een afspraak worden gewekt; daarom toont de app verschuldigde herinneringen ook tijdens gebruik.
-- Dezelfde gegevens verschijnen pas op meerdere telefoons nadat fase 2 met centrale synchronisatie is gebouwd.
+- Met een gekoppeld gezinsaccount en notificatietoestemming kan Web Push de geïnstalleerde PWA ook buiten actief gebruik wekken. Platforminstellingen zoals batterijbesparing of uitgeschakelde notificaties kunnen bezorging nog steeds beperken; daarom blijven in-app herinneringen actief.
+- E-mailbevestiging en synchronisatie vereisen tijdelijk internet; alle gewone appfuncties blijven offline beschikbaar.
 
 ## Licentie en kosten
 
-Samen Thuis gebruikt geen betaalde diensten, abonnementen of externe runtimebibliotheken. De app kan lokaal en als statische website gratis worden gebruikt. Eventuele kosten voor een eigen domeinnaam zijn optioneel en staan los van de app.
+Samen Thuis gebruikt geen betaalde runtimebibliotheken. De app kan lokaal gratis worden gebruikt en de cloudkoppeling is ontworpen voor de gratis limieten van Netlify en Supabase. Wanneer een aanbieder zijn gratis limieten of voorwaarden wijzigt of wanneer het gezin die limieten overschrijdt, kan die dienst pauzeren; de lokale IndexedDB-versie blijft dan bruikbaar. Een eigen domeinnaam is optioneel.

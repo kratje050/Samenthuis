@@ -32,7 +32,7 @@ export async function importBackup(backup, mode = 'merge') {
     for (const [section, storeName] of Object.entries(BACKUP_STORE_MAPPING)) {
       if (storeName === STORES.outbox) continue;
       const store = tx.objectStore(storeName);
-      for (const source of backup[section]) {
+      for (const source of backup[section] || []) {
         const existing = mode === 'merge' ? await toPromise(store.get(source.id)) : null;
         if (mode === 'replace' || newer(source, existing)) {
           const record = { ...source, syncStatus: 'pending', updatedAt: source.updatedAt || now };

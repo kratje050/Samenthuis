@@ -13,6 +13,7 @@
 .button.ghost { background: transparent; color: var(--brown-2); border-color: transparent; }
 .button.danger { background: var(--red); border-color: var(--red); color: #fff; }
 .button.small { min-height: 44px; padding: .4rem .72rem; font-size: .82rem; }
+.full-width { width: 100%; }
 .icon-button, .avatar-button { width: var(--tap); padding: 0; border: 1px solid var(--border); background: var(--paper); color: var(--brown); }
 .avatar-button { background: var(--brown); color: var(--paper); font-size: .78rem; }
 .text-button { min-height: 44px; padding: .15rem .5rem; border: 0; background: transparent; color: inherit; text-decoration: underline; }
@@ -68,4 +69,16 @@ input[type="color"] { padding: .25rem; }
 .search-icon, .quick-action-icon { display: grid; flex: 0 0 44px; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: var(--rose-soft); color: var(--rose); font-size: 1.3rem; font-weight: 850; }
 .quick-actions { display: grid; gap: .6rem; }
 .quick-actions a { color: inherit; text-decoration: none; }
+.cloud-button { position: relative; }
+.cloud-button::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 10px; height: 10px; border: 2px solid var(--paper); border-radius: 50%; background: var(--taupe); }
+.cloud-button[data-sync-status="synced"]::after, .cloud-button[data-sync-status="idle"]::after { background: var(--green); }
+.cloud-button[data-sync-status="syncing"]::after { background: var(--amber); animation: pulse 1s infinite; }
+.cloud-button[data-sync-status="error"]::after, .cloud-button[data-sync-status="conflict"]::after { background: var(--red); }
+.sync-summary { display: grid; gap: .3rem; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 16px; background: var(--beige); }
+.sync-summary strong { font-size: 1.15rem; }
+.sync-summary.synced { border-color: var(--green); }
+.sync-summary.error, .sync-summary.conflict { border-color: var(--red); }
+.invite-code { margin: 1rem 0; padding: 1rem; border: 2px dashed var(--rose); border-radius: 16px; background: var(--rose-soft); color: var(--brown); text-align: center; font-size: clamp(1.5rem, 8vw, 2.4rem); font-weight: 900; letter-spacing: .12em; overflow-wrap: anywhere; }
+hr { width: 100%; margin: 1rem 0; border: 0; border-top: 1px solid var(--border); }
+@keyframes pulse { 50% { opacity: .35; } }
 @keyframes slide-in { from { opacity: 0; transform: translateY(8px); } }
