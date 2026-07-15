@@ -11,6 +11,7 @@ import { addDays, addMonths, endOfMonth, formatDate, fromDateKey, startOfMonth, 
 import { validateAppointment } from '../services/validation-service.js';
 import { downloadIcs, icsToAppointments } from '../services/ics-service.js';
 import { arrayValue, bindAction, boolValue, categoryColor, consumeHashAction, e, emptyState, field, handleError, numberValue, textArea, value } from './view-helpers.js';
+import { icon } from '../utils/icons.js';
 
 let mode = 'today';
 let cursor = new Date();
@@ -30,19 +31,20 @@ function appointmentForm(record = {}) {
   ];
   return `<div class="form-grid">
     ${field('title', 'Titel', record, { required: true, className: 'full', placeholder: 'Bijvoorbeeld: zwemles' })}
-    ${textArea('description', 'Omschrijving', record, 'full')}
-    ${datePicker('date', 'Datum', record.date || toDateKey(), { required: true })}
-    <div class="field"><label>&nbsp;</label><label class="check-row"><input id="allDay" name="allDay" type="checkbox" ${record.allDay ? 'checked' : ''}> Afspraak zonder tijd</label></div>
-    ${timePicker('startTime', 'Begintijd', record.startTime || '')}${timePicker('endTime', 'Eindtijd', record.endTime || '')}
-    ${field('location', 'Locatie', record)}${field('category', 'Categorie', { category: record.category || 'Gezin' }, { options: settings.categories.appointments })}
+    ${datePicker('date', 'Datum', record.date || toDateKey(), { required: true, className: 'full appointment-date' })}
+    <div class="field full appointment-all-day"><label class="check-row"><input id="allDay" name="allDay" type="checkbox" ${record.allDay ? 'checked' : ''}> Afspraak zonder tijd</label></div>
+    ${timePicker('startTime', 'Begintijd', record.startTime || '', { className: 'appointment-time' })}${timePicker('endTime', 'Eindtijd', record.endTime || '', { className: 'appointment-time' })}
     <fieldset class="full"><legend>Gezinsleden</legend><div class="check-grid">${memberChecks}</div></fieldset>
-    ${field('recurrence', 'Herhaling', { recurrence: record.recurrence || 'none' }, { options: recurrenceOptions })}
-    ${datePicker('recurrenceUntil', 'Herhalen tot', record.recurrenceUntil || '', { min: record.date || toDateKey() })}
+    ${field('category', 'Categorie', { category: record.category || 'Gezin' }, { className: 'full', options: settings.categories.appointments })}
+    ${field('location', 'Locatie', record, { className: 'full' })}
+    ${textArea('notes', 'Notities', record, 'full')}
+    ${field('recurrence', 'Herhaling', { recurrence: record.recurrence || 'none' }, { className: 'full', options: recurrenceOptions })}
+    ${datePicker('recurrenceUntil', 'Herhalen tot', record.recurrenceUntil || '', { className: 'full', min: record.date || toDateKey() })}
     <div class="field recurrence-custom"><label for="recurrenceInterval">Iedere</label><input id="recurrenceInterval" name="recurrenceInterval" type="number" min="1" value="${record.recurrenceInterval || 1}"></div>
     ${field('recurrenceUnit', 'Intervaleenheid', { recurrenceUnit: record.recurrenceUnit || 'days' }, { className: 'recurrence-custom', options: [{value:'days',label:'dag(en)'},{value:'weeks',label:'week/weken'},{value:'months',label:'maand(en)'}] })}
-    ${field('reminder', 'Herinnering', { reminder: record.reminder || 'none' }, { options: reminderOptions })}
-    ${field('reminderCustom', 'Eigen minuten vooraf', record, { type: 'number', min: '0' })}
-    ${textArea('notes', 'Notities', record, 'full')}
+    ${field('reminder', 'Herinnering', { reminder: record.reminder || 'none' }, { className: 'full', options: reminderOptions })}
+    ${field('reminderCustom', 'Eigen minuten vooraf', record, { type: 'number', min: '0', className: 'full' })}
+    ${textArea('description', 'Omschrijving (optioneel)', record, 'full')}
   </div>`;
 }
 
@@ -50,7 +52,7 @@ function openAppointment(record = null, copy = false) {
   const source = record ? { ...record, id: undefined, title: copy ? `${record.title} (kopie)` : record.title } : {};
   const editing = record && !copy;
   const modal = openModal({
-    title: editing ? 'Afspraak aanpassen' : 'Nieuwe afspraak', content: appointmentForm(source), submitLabel: editing ? 'Wijzigingen opslaan' : 'Afspraak toevoegen', wide: true,
+    title: editing ? 'Afspraak aanpassen' : 'Nieuwe afspraak', content: appointmentForm(source), submitLabel: 'Opslaan', wide: true,
     onSubmit: async (data) => {
       const members = arrayValue(data, 'members');
       const appointment = {
@@ -113,18 +115,22 @@ async function refresh() {
   const occurrences = await services.agenda.occurrencesBetween(range.start, range.end, filters);
   if (mode === 'month') content.innerHTML = renderMonthCalendar(cursor, occurrences, categoryColor);
   else if (mode === 'week') content.innerHTML = renderWeekCalendar(cursor, occurrences, categoryColor);
-  else content.innerHTML = renderDayCalendar(occurrences, appState.settings.members);
+  else content.innerHTML = renderDayCalendar(occurrences, appState.settings.members, categoryColor);
 }
 
 export const agendaView = {
   async render() {
     const settings = appState.settings;
-    return `<section class="page-stack"><div class="page-header"><div><p class="muted">Eén gezamenlijke agenda, offline beschikbaar en optioneel gesynchroniseerd.</p></div><div class="page-actions"><button class="button secondary" id="import-ics">Agenda importeren</button><button class="button secondary" id="export-ics">Agenda exporteren</button><button class="button" id="new-appointment">＋ Nieuwe afspraak</button><input class="sr-only" id="ics-file" type="file" accept="text/calendar,.ics"></div></div>
-      <div class="segmented" aria-label="Agendaweergave">${[['today','Vandaag'],['upcoming','Komend'],['day','Dag'],['week','Week'],['month','Maand'],['list','Lijst'],['deleted','Prullenbak']].map(([key,label]) => `<button type="button" data-agenda-mode="${key}">${label}</button>`).join('')}</div>
-      <div class="toolbar"><div class="field grow"><label for="agenda-search">Zoeken</label><input id="agenda-search" type="search" placeholder="Titel, locatie, categorie of notitie" value="${e(filters.query)}"></div>
-        ${field('member-filter','Gezinslid',{ 'member-filter': filters.member },{ options:[{value:'',label:'Alle gezinsleden'},...settings.members.map((m)=>({value:m.id,label:m.name}))] })}
-        ${field('category-filter','Categorie',{ 'category-filter': filters.category },{ options:[{value:'',label:'Alle categorieën'},...settings.categories.appointments] })}</div>
-      <div class="card"><div class="calendar-nav"><button class="icon-button" id="agenda-prev" aria-label="Vorige periode">‹</button><h2 id="agenda-range-label"></h2><button class="icon-button" id="agenda-next" aria-label="Volgende periode">›</button></div><div id="agenda-content"></div></div></section>`;
+    return `<section class="page-stack agenda-page">
+      <div class="page-header agenda-desktop-actions"><p class="muted">Eén gezamenlijke gezinsagenda, altijd offline beschikbaar.</p><div class="page-actions"><button class="button secondary" id="import-ics">Importeren</button><button class="button secondary" id="export-ics">Exporteren</button><button class="button" id="new-appointment">${icon('plus')} Nieuwe afspraak</button><input class="sr-only" id="ics-file" type="file" accept="text/calendar,.ics"></div></div>
+      <div class="segmented agenda-modes" aria-label="Agendaweergave">${[['today','Vandaag'],['week','Week'],['month','Maand'],['upcoming','Komend'],['day','Dag'],['list','Lijst'],['deleted','Prullenbak']].map(([key,label]) => `<button type="button" data-agenda-mode="${key}">${label}</button>`).join('')}</div>
+      <details class="filter-panel"><summary>${icon('search')} Zoeken en filteren</summary><div class="toolbar"><div class="field grow"><label for="agenda-search">Zoeken</label><input id="agenda-search" type="search" placeholder="Titel, locatie, categorie of notitie" value="${e(filters.query)}"></div>
+        ${field('member-filter','Gezinslid',{ 'member-filter': filters.member },{ options:[{value:'',label:'Alle gezinsleden'},...settings.members.map((member)=>({value:member.id,label:member.name}))] })}
+        ${field('category-filter','Categorie',{ 'category-filter': filters.category },{ options:[{value:'',label:'Alle categorieën'},...settings.categories.appointments] })}</div></details>
+      <div class="agenda-date-nav"><button class="icon-button" id="agenda-prev" aria-label="Vorige periode">${icon('chevron-left')}</button><h2 id="agenda-range-label"></h2><button class="icon-button" id="agenda-next" aria-label="Volgende periode">${icon('chevron-right')}</button></div>
+      <div id="agenda-content"></div>
+      <div class="agenda-member-strip">${settings.members.map((member) => `<button type="button" data-member-shortcut="${e(member.id)}"><span class="member-avatar" style="--member-color:${member.color}">${e(String(member.icon || member.name).slice(0, 1))}</span><span>${e(member.name)}</span><i style="--member-color:${member.color}"></i></button>`).join('')}</div>
+    </section>`;
   },
   async mount(root) {
     root.querySelector('#new-appointment').addEventListener('click', () => openAppointment());
@@ -146,6 +152,12 @@ export const agendaView = {
     root.querySelector('#agenda-search').addEventListener('input', async (event) => { filters.query = event.target.value; await refresh(); });
     root.querySelector('[name="member-filter"]').addEventListener('change', async (event) => { filters.member = event.target.value; await refresh(); });
     root.querySelector('[name="category-filter"]').addEventListener('change', async (event) => { filters.category = event.target.value; await refresh(); });
+    root.querySelectorAll('[data-member-shortcut]').forEach((button) => button.addEventListener('click', async () => {
+      filters.member = filters.member === button.dataset.memberShortcut ? '' : button.dataset.memberShortcut;
+      root.querySelector('[name="member-filter"]').value = filters.member;
+      root.querySelectorAll('[data-member-shortcut]').forEach((item) => item.classList.toggle('active', item.dataset.memberShortcut === filters.member));
+      await refresh();
+    }));
     const move = async (direction) => { cursor = mode === 'month' ? addMonths(cursor, direction) : addDays(cursor, direction * (mode === 'week' ? 7 : 1)); await refresh(); };
     root.querySelector('#agenda-prev').addEventListener('click', () => move(-1)); root.querySelector('#agenda-next').addEventListener('click', () => move(1));
     bindAction(root, '[data-open-day]', async (button) => { cursor = fromDateKey(button.dataset.openDay); mode = 'day'; await refresh(); });

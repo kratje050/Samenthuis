@@ -1,9 +1,9 @@
 importScripts('./js/workers/background-sync-worker.js');
 
-const CACHE_VERSION = 'samen-thuis-v1.4.5';
+const CACHE_VERSION = 'samen-thuis-v2.0.3';
 const APP_SHELL = [
   './', './index.html', './manifest.json',
-  './assets/icons/icon-180.png', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/icon-192.svg', './assets/icons/icon-512.svg',
+  './assets/icons/icon-180.png', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/icon-192.svg', './assets/icons/icon-512.svg', './assets/icons/ui-icons.svg', './assets/images/home-corner.svg',
   './css/variables.css', './css/base.css', './css/layout.css', './css/components.css', './css/calendar.css', './css/responsive.css',
   './js/app.js', './js/config.js', './js/router.js', './js/state.js',
   './js/database/indexed-db.js', './js/database/migrations.js', './js/database/database-schema.js',
@@ -12,7 +12,7 @@ const APP_SHELL = [
   './js/workers/background-sync-worker.js',
   './js/views/view-helpers.js', './js/views/dashboard-view.js', './js/views/agenda-view.js', './js/views/shopping-view.js', './js/views/tasks-view.js', './js/views/meals-view.js', './js/views/inventory-view.js', './js/views/expenses-view.js', './js/views/pets-view.js', './js/views/outings-view.js', './js/views/settings-view.js', './js/views/more-view.js', './js/views/activity-view.js', './js/views/templates-view.js',
   './js/components/modal.js', './js/components/toast.js', './js/components/date-picker.js', './js/components/time-picker.js', './js/components/calendar-month.js', './js/components/calendar-week.js', './js/components/calendar-day.js', './js/components/confirm-dialog.js', './js/components/global-search.js', './js/components/quick-add.js', './js/components/cloud-dialog.js',
-  './js/utils/uuid.js', './js/utils/dates.js', './js/utils/formatting.js', './js/utils/device.js', './js/utils/sanitization.js', './js/utils/actor.js', './js/utils/account.js'
+  './js/utils/uuid.js', './js/utils/dates.js', './js/utils/formatting.js', './js/utils/device.js', './js/utils/sanitization.js', './js/utils/actor.js', './js/utils/account.js', './js/utils/icons.js'
 ];
 
 self.addEventListener('install', (event) => {

@@ -8,6 +8,27 @@ function showError(modal, error) { const root = errorRoot(modal); root.textConte
 function setBusy(button, busy) { button.disabled = busy; button.setAttribute('aria-busy', String(busy)); }
 function formValue(modal, name) { return String(new FormData(modal.querySelector('form')).get(name) || '').trim(); }
 
+function validateCredentials(modal, { requireName = false } = {}) {
+  const displayName = formValue(modal, 'displayName');
+  const email = formValue(modal, 'email');
+  const password = formValue(modal, 'password');
+  if (requireName && !displayName) throw new Error('Vul je naam in voor het nieuwe account.');
+  if (!email) throw new Error('Vul je e-mailadres in.');
+  if (!email.includes('@')) throw new Error('Vul een geldig e-mailadres in.');
+  if (!password) throw new Error('Vul je wachtwoord in.');
+  return { displayName, email, password };
+}
+
+function authError(error, mode) {
+  const message = String(error?.message || '').toLocaleLowerCase('en');
+  if (message.includes('missing email') || message.includes('email or phone')) return new Error('Vul je e-mailadres in.');
+  if (message.includes('invalid login') || message.includes('invalid credentials')) return new Error('Het e-mailadres of wachtwoord is niet juist.');
+  if (message.includes('email not confirmed')) return new Error('Bevestig eerst je e-mailadres via de ontvangen e-mail.');
+  if (message.includes('already registered') || message.includes('already exists')) return new Error('Voor dit e-mailadres bestaat al een account. Kies Inloggen.');
+  if (message.includes('password') && message.includes('characters')) return new Error('Gebruik een wachtwoord van minimaal 8 tekens.');
+  return error instanceof Error ? error : new Error(mode === 'signup' ? 'Account maken is niet gelukt.' : 'Inloggen is niet gelukt.');
+}
+
 function statusText() {
   const sync = appState.cloud.sync;
   if (!navigator.onLine) return 'Offline – wijzigingen wachten veilig op dit apparaat.';
@@ -17,34 +38,41 @@ function statusText() {
   return 'Nog niet gesynchroniseerd.';
 }
 
-function openAuthDialog() {
+function openAuthDialog(mode = 'signin', draft = {}) {
+  const signingUp = mode === 'signup';
   const modal = openModal({
-    title: 'Gezinsaccount', onSubmit: null,
-    content: `<p class="muted">Log in om dezelfde gegevens veilig op meerdere telefoons te gebruiken. Zonder account blijft alles offline werken.</p>
-      <div class="form-grid"><div class="field full"><label for="cloud-display-name">Jouw naam</label><input id="cloud-display-name" name="displayName" autocomplete="name" placeholder="Bijvoorbeeld Roy"></div>
-      <div class="field full"><label for="cloud-email">E-mailadres</label><input id="cloud-email" name="email" type="email" autocomplete="email" required></div>
-      <div class="field full"><label for="cloud-password">Wachtwoord</label><input id="cloud-password" name="password" type="password" minlength="8" autocomplete="current-password" required></div></div>
-      <p class="small muted">Bij een nieuw account ontvang je mogelijk eerst een bevestigingsmail.</p>`
+    title: signingUp ? 'Nieuw account maken' : 'Inloggen', onSubmit: null,
+    content: `<p class="muted">${signingUp ? 'Maak één keer een persoonlijk account. Je naam wordt in het account bewaard.' : 'Heb je al een account? Log dan alleen in met je e-mailadres en wachtwoord.'}</p>
+      <div class="form-grid">${signingUp ? `<div class="field full"><label for="cloud-display-name">Jouw naam</label><input id="cloud-display-name" name="displayName" autocomplete="name" placeholder="Bijvoorbeeld Roy" value="${e(draft.displayName || '')}" required></div>` : ''}
+      <div class="field full"><label for="cloud-email">E-mailadres</label><input id="cloud-email" name="email" type="email" autocomplete="email" value="${e(draft.email || '')}" required></div>
+      <div class="field full"><label for="cloud-password">Wachtwoord</label><input id="cloud-password" name="password" type="password" minlength="8" autocomplete="${signingUp ? 'new-password' : 'current-password'}" value="${e(draft.password || '')}" required></div></div>
+      ${signingUp ? '<p class="small muted">Na registratie ontvang je mogelijk eerst een bevestigingsmail.</p>' : '<p class="small muted">Je accountnaam en gezinskoppeling worden na het inloggen automatisch opgehaald.</p>'}`
   });
   const footer = modal.querySelector('.modal-footer');
-  footer.innerHTML = '<button class="button secondary" type="button" data-close>Annuleren</button><button class="button secondary" type="button" id="cloud-sign-up">Account maken</button><button class="button" type="button" id="cloud-sign-in">Inloggen</button>';
+  footer.innerHTML = signingUp
+    ? '<button class="button secondary" type="button" data-close>Annuleren</button><button class="button secondary" type="button" id="show-cloud-sign-in">Terug naar inloggen</button><button class="button" type="button" id="cloud-sign-up">Account maken</button>'
+    : '<button class="button secondary" type="button" data-close>Annuleren</button><button class="button secondary" type="button" id="show-cloud-sign-up">Nieuw account maken</button><button class="button" type="button" id="cloud-sign-in">Inloggen</button>';
 
-  modal.querySelector('#cloud-sign-in').addEventListener('click', async (event) => {
+  const currentDraft = () => ({ displayName: formValue(modal, 'displayName'), email: formValue(modal, 'email'), password: formValue(modal, 'password') });
+  modal.querySelector('#show-cloud-sign-up')?.addEventListener('click', () => openAuthDialog('signup', currentDraft()));
+  modal.querySelector('#show-cloud-sign-in')?.addEventListener('click', () => openAuthDialog('signin', currentDraft()));
+
+  modal.querySelector('#cloud-sign-in')?.addEventListener('click', async (event) => {
     const button = event.currentTarget; setBusy(button, true); errorRoot(modal).hidden = true;
     try {
-      await services.auth.signIn({ email: formValue(modal, 'email'), password: formValue(modal, 'password') });
+      const credentials = validateCredentials(modal);
+      await services.auth.signIn(credentials);
       await services.family.refreshContext();
       showToast('Je bent ingelogd.');
       openCloudDialog();
-    } catch (error) { showError(modal, error); } finally { setBusy(button, false); }
+    } catch (error) { showError(modal, authError(error, 'signin')); } finally { setBusy(button, false); }
   });
 
-  modal.querySelector('#cloud-sign-up').addEventListener('click', async (event) => {
+  modal.querySelector('#cloud-sign-up')?.addEventListener('click', async (event) => {
     const button = event.currentTarget; setBusy(button, true); errorRoot(modal).hidden = true;
     try {
-      const displayName = formValue(modal, 'displayName');
-      if (!displayName) throw new Error('Vul je naam in voor het nieuwe account.');
-      const result = await services.auth.signUp({ email: formValue(modal, 'email'), password: formValue(modal, 'password'), displayName });
+      const credentials = validateCredentials(modal, { requireName: true });
+      const result = await services.auth.signUp(credentials);
       if (result.confirmationRequired) {
         closeModal();
         showToast('Account gemaakt. Open de bevestigingsmail en log daarna in.', 'success', 7000);
@@ -53,7 +81,7 @@ function openAuthDialog() {
         showToast('Account gemaakt en ingelogd.');
         openCloudDialog();
       }
-    } catch (error) { showError(modal, error); } finally { setBusy(button, false); }
+    } catch (error) { showError(modal, authError(error, 'signup')); } finally { setBusy(button, false); }
   });
 }
 

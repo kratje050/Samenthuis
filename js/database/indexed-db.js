@@ -69,7 +69,7 @@ export async function seedDatabase() {
         expenses: EXPENSE_CATEGORIES,
         outings: OUTING_CATEGORIES
       },
-      theme: 'system', dateFormat: 'dd-mm-yyyy', timeFormat: '24h', currency: 'EUR',
+      theme: 'light', dateFormat: 'dd-mm-yyyy', timeFormat: '24h', currency: 'EUR',
       notifications: false, weekStartsOn: 1, greetingName: '',
       createdAt: now, updatedAt: now, deletedAt: null, version: 1,
       deviceId: getDeviceId(), syncStatus: 'local', updatedBy: 'system'

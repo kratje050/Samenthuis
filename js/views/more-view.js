@@ -1,16 +1,18 @@
+import { icon } from '../utils/icons.js';
+
 const items = [
-  ['meals','♨','Maaltijden','Plan de week en bewaar recepten.'],
-  ['inventory','◫','Voorraad','Bekijk tekorten en houdbaarheid.'],
-  ['expenses','€','Uitgaven','Houd handmatig de maand bij.'],
-  ['pets','♣','Huisdieren','Medicatie, vaccinaties en dierenarts.'],
-  ['outings','⌖','Uitjes','Bewaar plannen, vakanties en ideeën.'],
-  ['activity','↻','Activiteit','Bekijk wie iets heeft gewijzigd.'],
-  ['templates','▧','Sjablonen','Herbruik boodschappen-, taken- en inpaklijsten.'],
-  ['settings','⚙','Instellingen','Gezinsleden, back-up en voorkeuren.']
+  ['meals', 'meals', 'Maaltijden', 'Plan de week en bewaar recepten.'],
+  ['inventory', 'inventory', 'Voorraad', 'Bekijk tekorten en houdbaarheid.'],
+  ['expenses', 'expenses', 'Uitgaven', 'Houd handmatig de maand bij.'],
+  ['pets', 'pets', 'Huisdieren', 'Medicatie, vaccinaties en dierenarts.'],
+  ['outings', 'outings', 'Uitjes', 'Bewaar plannen, vakanties en ideeën.'],
+  ['activity', 'activity', 'Activiteit', 'Bekijk wie iets heeft gewijzigd.'],
+  ['templates', 'templates', 'Sjablonen', 'Herbruik boodschappen-, taken- en inpaklijsten.'],
+  ['settings', 'settings', 'Instellingen', 'Gezinsleden, back-up en voorkeuren.']
 ];
 
 export const moreView = {
   async render() {
-    return `<section class="page-stack"><p class="muted">Alle andere onderdelen van Samen Thuis.</p><div class="content-grid two">${items.map(([route,icon,title,description]) => `<a class="card" href="#${route}" style="text-decoration:none;color:inherit"><span class="metric" aria-hidden="true">${icon}</span><h2>${title}</h2><p class="muted">${description}</p></a>`).join('')}</div></section>`;
+    return `<section class="page-stack more-page"><p class="muted">Alle andere onderdelen van Gezin &amp; Co.</p><div class="more-grid">${items.map(([route, iconName, title, description]) => `<a class="more-tile" href="#${route}"><span>${icon(iconName)}</span><div><h2>${title}</h2><p>${description}</p></div>${icon('chevron-right')}</a>`).join('')}</div></section>`;
   }
 };

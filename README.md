@@ -2,7 +2,7 @@
 
 Samen Thuis is een complete Nederlandstalige gezinsplanner voor Roy, Demy, Miley en Navy. De app combineert één gezamenlijke agenda met boodschappen, huishoudelijke taken, een maaltijdplanner, voorraad, uitgaven, huisdieren en uitjes.
 
-Versie 1.4 is offline-first: alle schermen blijven IndexedDB gebruiken en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
+Versie 2.0 is offline-first en heeft het nieuwe **Gezin & Co**-ontwerp: een rustige crème basis, koraalrode accenten, compacte gezinskaarten, lokale lijniconen, een vaste mobiele onderbalk en een helder zijmenu op grotere schermen. Alle schermen blijven IndexedDB gebruiken en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
 
 ## Mogelijkheden
 
@@ -97,6 +97,8 @@ Maak daarom regelmatig een back-up.
 4. Log in, kies **Nieuw gezin maken** en bewaar de getoonde uitnodigingscode.
 5. Maak op de tweede telefoon een account voor Demy en kies **Met code aansluiten**.
 6. Vanaf dat moment synchroniseert de app bij openen, terugkeren naar de voorgrond, internetherstel, kort na iedere wijziging en tijdens een actieve minuutcontrole. De geïnstalleerde PWA registreert daarnaast achtergrondtaken waar de browser dit toestaat.
+
+Bij een bestaand account vraagt **Inloggen** uitsluitend om e-mailadres en wachtwoord. Het naamveld verschijnt alleen bij **Nieuw account maken** en wordt daarna in het account bewaard. Na aanmelden haalt de app de accountnaam en bestaande gezinskoppeling automatisch op.
 
 Een uitnodigingscode is zeven dagen geldig en kan één keer worden gebruikt. Alleen de beheerder kan een nieuwe code maken; een nieuwe code maakt de vorige direct ongeldig. Wachtwoorden worden uitsluitend door Supabase Auth verwerkt en staan niet in de appdatabase. Toegangssessies staan lokaal in IndexedDB, niet in de back-up.
 

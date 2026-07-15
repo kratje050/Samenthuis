@@ -1,6 +1,6 @@
 import { initializeDatabase } from './database/indexed-db.js';
 import { initializeState, initializeCloudState, appState, services, on } from './state.js';
-import { initializeRouter, renderRoute } from './router.js';
+import { initializeRouter, renderRoute, renderSidebarMembers } from './router.js';
 import { ReminderService } from './services/reminder-service.js';
 import { showToast } from './components/toast.js';
 import { openGlobalSearch } from './components/global-search.js';
@@ -36,9 +36,25 @@ function initializeThemeToggle() {
 }
 
 function initializeGlobalActions() {
-  document.querySelector('#global-search').addEventListener('click', openGlobalSearch);
-  document.querySelector('#quick-add').addEventListener('click', openQuickAdd);
+  document.querySelector('#global-search').addEventListener('click', () => {
+    if (appState.route === 'shopping') {
+      const panel = document.querySelector('.shopping-page .filter-panel');
+      if (panel) panel.open = true;
+      document.querySelector('#shopping-search')?.focus();
+      return;
+    }
+    openGlobalSearch();
+  });
+  document.querySelector('#quick-add').addEventListener('click', () => {
+    if (['agenda', 'shopping', 'tasks'].includes(appState.route)) {
+      location.hash = `#${appState.route}?new=1`;
+      return;
+    }
+    openQuickAdd();
+  });
   document.querySelector('#cloud-status').addEventListener('click', openCloudDialog);
+  document.querySelector('#sidebar-cloud-status')?.addEventListener('click', openCloudDialog);
+  document.querySelector('#mobile-menu')?.addEventListener('click', () => { location.hash = '#more'; });
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'k') { event.preventDefault(); openGlobalSearch(); }
   });
@@ -46,14 +62,14 @@ function initializeGlobalActions() {
 
 function initializeCloudUi() {
   const button = document.querySelector('#cloud-status');
-  const note = document.querySelector('.local-note');
+  const note = document.querySelector('.local-note span:last-child');
   const update = () => {
     const label = cloudStatusLabel();
     const status = appState.cloud.family ? appState.cloud.sync.status : 'local';
     button.dataset.syncStatus = status;
     button.setAttribute('aria-label', `Gezinsaccount: ${label}`);
     button.title = label;
-    if (note) note.innerHTML = `<span aria-hidden="true">●</span> ${label}`;
+    if (note) note.textContent = label;
   };
   on('cloud', update);
   window.addEventListener('online', update);
@@ -100,12 +116,13 @@ async function registerServiceWorker() {
 
 async function start() {
   try {
-    applyTheme(localStorage.getItem('samen-thuis-theme') || 'system');
+    applyTheme(localStorage.getItem('samen-thuis-theme') || 'light');
     await initializeDatabase();
     await initializeState();
     await initializeCloudState();
     applyTheme(appState.settings.theme);
     initializeConnectivity(); initializeThemeToggle(); initializeGlobalActions(); initializeCloudUi();
+    on('settings', renderSidebarMembers);
     const serviceWorkerRegistration = await registerServiceWorker();
     await services.backgroundSync.start(serviceWorkerRegistration);
     await initializeRouter();

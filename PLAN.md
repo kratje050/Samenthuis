@@ -2,7 +2,7 @@
 
 ## Doel en grenzen
 
-Samen Thuis is een gratis, Nederlandstalige, mobile-first gezins-PWA. IndexedDB blijft op ieder apparaat de offline bron voor de UI. Versie 1.4 bevat optionele accounts, centrale Supabase-synchronisatie, PWA-achtergrondtaken en Web Push; zonder account werkt de app nog steeds volledig lokaal. `localStorage` bevat alleen kleine interfacevoorkeuren en het apparaat-ID. Sessies staan in een aparte IndexedDB-store.
+Samen Thuis is een gratis, Nederlandstalige, mobile-first gezins-PWA. IndexedDB blijft op ieder apparaat de offline bron voor de UI. Versie 2.0 combineert het nieuwe Gezin & Co-ontwerp met optionele accounts, centrale Supabase-synchronisatie, PWA-achtergrondtaken en Web Push; zonder account werkt de app nog steeds volledig lokaal. `localStorage` bevat alleen kleine interfacevoorkeuren en het apparaat-ID. Sessies staan in een aparte IndexedDB-store.
 
 ## Architectuur
 
@@ -77,7 +77,7 @@ Export leest alle domeinstores en maakt één versieerbaar JSON-bestand. Authses
 
 ## Toegankelijkheid en ontwerp
 
-Semantische HTML, gekoppelde labels, toetsenbordbediening, zichtbare focus, live-regio's, voldoende kleurcontrast en aanraakvlakken van minimaal 44px zijn leidend. De warme crème/taupe/oudroze vormtaal gebruikt lokale SVG-iconen en systeemlettertypen. Telefoons krijgen ondernavigatie; vanaf tabletbreedte verschijnt een zijmenu.
+Semantische HTML, gekoppelde labels, toetsenbordbediening, zichtbare focus, live-regio's, voldoende kleurcontrast en aanraakvlakken van minimaal 44px zijn leidend. Het Gezin & Co-ontwerp gebruikt een warme crème basis, papierwitte kaarten, zachte taupe randen, koraalrood als actief accent, subtiele schaduwen, lokale SVG-lijniconen en systeemlettertypen. Het dashboard gebruikt op desktop een 3×2-kaartindeling en op telefoon twee compacte kolommen. Agenda, boodschappen en taken gebruiken horizontale filterpillen en verbonden lijstgroepen. Telefoons krijgen een vaste ondernavigatie; vanaf tabletbreedte verschijnt het volledige zijmenu met gezinsleden.
 
 ## Teststrategie
 
@@ -91,7 +91,7 @@ Semantische HTML, gekoppelde labels, toetsenbordbediening, zichtbare focus, live
 
 ## Fase 2: centrale database en automatische synchronisatie
 
-Fase 2 is in versie 1.4 als **losse sync-adapter** naast de bestaande repositories geïmplementeerd; views en domeinopslag blijven intact. Supabase levert Auth, PostgreSQL, Cron en één Edge Function voor Web Push. Alleen de openbare publishable key staat in de client. De secret- en service-role keys worden nergens in de statische website gebruikt.
+Fase 2 is als **losse sync-adapter** naast de bestaande repositories geïmplementeerd; views en domeinopslag blijven intact. Supabase levert Auth, PostgreSQL, Cron en één Edge Function voor Web Push. Alleen de openbare publishable key staat in de client. De secret- en service-role keys worden nergens in de statische website gebruikt.
 
 Het servermodel bestaat uit `families`, `family_members` en `family_records`. Accounts voor Roy en Demy kunnen via een gehashte, zeven dagen geldige en eenmalig bruikbare uitnodigingscode lid worden van één gezamenlijk gezin. Beveiligde RPC-functies bepalen het `familyId` uitsluitend via `auth.uid()`. Wachtwoorden worden alleen door Supabase Auth verwerkt, sessies gebruiken korte toegangstokens plus refresh-rotatie en alle communicatie loopt via HTTPS.
 
