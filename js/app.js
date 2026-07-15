@@ -6,6 +6,7 @@ import { showToast } from './components/toast.js';
 import { openGlobalSearch } from './components/global-search.js';
 import { openQuickAdd } from './components/quick-add.js';
 import { cloudStatusLabel, openCloudDialog } from './components/cloud-dialog.js';
+import { initializePwaInstallOffer } from './services/pwa-install-service.js';
 
 function applyTheme(theme = 'system') {
   const resolved = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
@@ -97,6 +98,7 @@ async function start() {
     const serviceWorkerRegistration = await registerServiceWorker();
     await services.backgroundSync.start(serviceWorkerRegistration);
     await initializeRouter();
+    initializePwaInstallOffer();
     window.addEventListener('samen-thuis-data-synced', () => renderRoute().catch(console.error));
     const reminders = new ReminderService(services.agenda, showInAppReminder); reminders.start();
     if (appState.settings.notifications) services.push.refreshExisting().catch(console.warn);
@@ -109,5 +111,4 @@ async function start() {
   }
 }
 
-window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); window.samenThuisInstallPrompt = event; window.dispatchEvent(new CustomEvent('samen-thuis-install-ready')); });
 start();

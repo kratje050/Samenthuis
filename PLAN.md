@@ -15,7 +15,7 @@ De app bestaat uit vijf duidelijke lagen:
 5. **Synchronisatie** – de outbox-adapter pusht lokale mutaties via beveiligde RPC's en past centrale records zonder nieuwe outboxmutatie lokaal toe.
 6. **PWA-achtergrondlaag** – de service worker kan dezelfde outbox zelfstandig verwerken, de korte Supabase-sessie met de refresh-token roteren en centrale records rechtstreeks in de bestaande IndexedDB-stores toepassen. Een Web Lock voorkomt dat venster en service worker tegelijk dezelfde wachtrij verwerken.
 
-ES-modules houden onderdelen los gekoppeld. `state.js` bevat alleen runtime-status en een eventbus. `router.js` beheert hashroutes. De service worker cachet uitsluitend lokale appbestanden en gebruikt een versiegebonden cache met updatecontrole.
+ES-modules houden onderdelen los gekoppeld. `state.js` bevat alleen runtime-status en een eventbus. `router.js` beheert hashroutes. De service worker cachet uitsluitend lokale appbestanden en gebruikt een versiegebonden cache met updatecontrole. De PWA-installatieservice vangt de Android-installatieprompt vroeg op en toont op mobiele browsers een eigen toegankelijke keuze; op iPhone geeft dezelfde dialoog de verplichte Safari-stappen.
 
 ## Datamodel
 

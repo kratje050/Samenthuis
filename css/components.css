@@ -78,6 +78,11 @@ input[type="color"] { padding: .25rem; }
 .sync-summary strong { font-size: 1.15rem; }
 .sync-summary.synced { border-color: var(--green); }
 .sync-summary.error, .sync-summary.conflict { border-color: var(--red); }
+.pwa-install-intro { display: flex; align-items: center; gap: 1rem; padding: .85rem; border: 1px solid var(--border); border-radius: 18px; background: var(--paper); }
+.pwa-install-intro img { flex: 0 0 72px; border-radius: 18px; box-shadow: var(--shadow); }
+.pwa-install-intro p { margin: 0; }
+.pwa-install-steps { display: grid; gap: .65rem; margin: 1rem 0; padding-left: 1.6rem; }
+.pwa-install-steps li { padding-left: .25rem; }
 .invite-code { margin: 1rem 0; padding: 1rem; border: 2px dashed var(--rose); border-radius: 16px; background: var(--rose-soft); color: var(--brown); text-align: center; font-size: clamp(1.5rem, 8vw, 2.4rem); font-weight: 900; letter-spacing: .12em; overflow-wrap: anywhere; }
 hr { width: 100%; margin: 1rem 0; border: 0; border-top: 1px solid var(--border); }
 @keyframes pulse { 50% { opacity: .35; } }

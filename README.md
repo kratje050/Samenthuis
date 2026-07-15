@@ -63,8 +63,13 @@ Open `index.html` niet rechtstreeks vanuit Verkenner. ES-modules, IndexedDB en v
 
 1. Open de app via `localhost` of via een HTTPS-website.
 2. Wacht tot de eerste laadbeurt gereed is.
-3. Gebruik de installatieoptie van de browser, zoals **App installeren** of **Toevoegen aan beginscherm**. Wanneer de browser een installatieprompt aanbiedt, verschijnt die optie ook bij **Instellingen**.
-4. Open de geïnstalleerde app daarna vanuit het startscherm of appmenu.
+3. Op Android of iPhone verschijnt automatisch één keer per browsersessie de keuze om Samen Thuis als app te gebruiken, zolang de app nog niet geïnstalleerd is.
+4. Op Android start **Installeren** de installatieprompt van de browser. Als deze prompt niet beschikbaar is, toont de app de stappen via het browsermenu.
+5. Op iPhone toont de app de Safari-stappen: **Delen → Zet op beginscherm → Voeg toe**. iOS staat niet toe dat een website deze bevestiging automatisch uitvoert.
+6. De installatie-uitleg blijft altijd bereikbaar via **Meer → Instellingen → App installeren**.
+7. Open de geïnstalleerde app daarna vanuit het startscherm of appmenu.
+
+De installatiekeuze verschijnt niet wanneer Samen Thuis al in standalone-modus draait. Lokale PNG-iconen voor Android en `apple-touch-icon` voor iPhone zorgen dat het juiste apppictogram op het startscherm staat.
 
 Bij een nieuwe appversie verschijnt bovenaan een melding met **Nu bijwerken**. De service worker gebruikt een versiegebonden cache, activeert de nieuwe versie bewust en verwijdert oude Samen Thuis-caches. Hierdoor blijft een oude cache niet ongemerkt actief.
 

@@ -1,4 +1,6 @@
 @media (max-width: 420px) {
+  .pwa-install-intro { align-items: flex-start; }
+  .pwa-install-intro img { flex-basis: 60px; width: 60px; height: 60px; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid .full { grid-column: auto; }
   .dashboard-grid { grid-template-columns: 1fr; }
