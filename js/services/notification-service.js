@@ -8,6 +8,6 @@ export async function requestNotificationPermission() {
 export async function showNotification(title, options = {}) {
   if (!notificationsSupported() || Notification.permission !== 'granted') return false;
   const registration = await navigator.serviceWorker.ready;
-  await registration.showNotification(title, { icon: './assets/icons/icon-192.svg', badge: './assets/icons/icon-192.svg', ...options });
+  await registration.showNotification(title, { icon: './assets/icons/icon-192.png', badge: './assets/icons/icon-192.png', ...options });
   return true;
 }

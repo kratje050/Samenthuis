@@ -70,6 +70,7 @@ services.family = new FamilyService(supabaseClient, services.auth, ({ context, m
   setActiveActor(context ? { id: services.auth.user?.id, name: context.display_name } : {});
   services.backgroundSync?.refresh().catch(() => {});
   services.realtime?.refresh().catch(() => {});
+  if (context && appState.settings?.notifications) services.push?.refreshExisting().catch(console.warn);
   emit('cloud', appState.cloud);
 });
 

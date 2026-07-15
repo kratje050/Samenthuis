@@ -1,20 +1,44 @@
 import { fromDateKey, toDateKey } from '../utils/dates.js';
 
 function at(date, time = '09:00') { return date ? fromDateKey(String(date).slice(0, 10), time || '09:00') : null; }
+function atDateTime(value) { const [date, time = '09:00'] = String(value || '').split('T'); return at(date, time.slice(0, 5)); }
 function addAlert(alerts, record, type, due, title, message, route) {
   if (due && !Number.isNaN(due.getTime())) alerts.push({ key: `${type}:${record.id}:${due.toISOString()}`, due, title, message, route });
 }
 
 export async function collectFamilyReminders(repositories, now = new Date()) {
-  if (!repositories?.modules) return [];
   const today = toDateKey(now);
   const weekday = String(now.getDay());
-  const [waste, loans, maintenance, appliances, subscriptions, routines, bucket] = await Promise.all([
-    repositories.modules.waste.getAll(), repositories.modules.loan.getAll(), repositories.modules.maintenance.getAll(),
-    repositories.modules.appliance.getAll(), repositories.modules.subscription.getAll(), repositories.modules.routine.getAll(),
-    repositories.modules.bucket_list.getAll()
+  const all = (repository) => repository?.getAll?.() || Promise.resolve([]);
+  const modules = repositories?.modules || {};
+  const [tasks, pets, inventory, outings, waste, loans, maintenance, appliances, subscriptions, routines, bucket, babysitting, packing] = await Promise.all([
+    all(repositories?.tasks), all(repositories?.pets), all(repositories?.inventory), all(repositories?.outings),
+    all(modules.waste), all(modules.loan), all(modules.maintenance), all(modules.appliance), all(modules.subscription),
+    all(modules.routine), all(modules.bucket_list), all(modules.babysitting), all(modules.packing)
   ]);
   const alerts = [];
+  tasks.filter((item) => !['done','completed','archived'].includes(item.status)).forEach((item) => addAlert(alerts, item, 'task', at(item.date, item.time || '09:00'), `Taak: ${item.title}`, item.priority ? `Prioriteit: ${item.priority}` : 'Deze taak staat gepland', '#tasks'));
+  pets.forEach((item) => {
+    if (item.medication && item.medicationTime) addAlert(alerts, item, 'pet-medication', at(today, item.medicationTime), `Medicatie voor ${item.name}`, `${item.medication}${item.dosage ? ` · ${item.dosage}` : ''}`, '#pets');
+    if (item.vetAppointment) {
+      const visit = atDateTime(item.vetAppointment);
+      if (visit) {
+        const dayBefore = new Date(visit); dayBefore.setDate(dayBefore.getDate() - 1);
+        const hourBefore = new Date(visit); hourBefore.setHours(hourBefore.getHours() - 1);
+        addAlert(alerts, item, 'pet-vet-day', dayBefore, `Morgen naar de dierenarts: ${item.name}`, item.vet || 'Controleer tijd en benodigdheden', '#pets');
+        addAlert(alerts, item, 'pet-vet-hour', hourBefore, `Over een uur naar de dierenarts: ${item.name}`, item.vet || 'De afspraak komt eraan', '#pets');
+      }
+    }
+  });
+  inventory.forEach((item) => {
+    if (Number(item.quantity) <= Number(item.minimumQuantity)) addAlert(alerts, item, 'inventory-low', at(today), `Lage voorraad: ${item.productName}`, `Nog ${item.quantity ?? 0} ${item.unit || ''} beschikbaar`, '#inventory');
+    if (item.expiryDate) {
+      const expiry = at(item.expiryDate); const days = expiry ? Math.round((expiry - at(today)) / 86400000) : null;
+      if (days === 3) addAlert(alerts, item, 'inventory-expiry-soon', at(today), `Bijna over datum: ${item.productName}`, 'Nog 3 dagen houdbaar', '#inventory');
+      if (days === 0) addAlert(alerts, item, 'inventory-expiry-today', at(today), `Vandaag houdbaar: ${item.productName}`, 'Gebruik dit product vandaag', '#inventory');
+    }
+  });
+  outings.filter((item) => item.planned && !item.completed).forEach((item) => { const due = at(item.date); if (due) due.setDate(due.getDate() - 1); addAlert(alerts, item, 'outing', due, `Morgen: ${item.name}`, item.location || 'Controleer de planning', '#outings'); });
   waste.filter((item) => !item.putOutside).forEach((item) => {
     const pickup = at(item.date, item.reminderTime || '20:00');
     if (pickup) pickup.setDate(pickup.getDate() - 1);
@@ -33,5 +57,7 @@ export async function collectFamilyReminders(repositories, now = new Date()) {
   });
   routines.filter((item) => item.status === 'active' && !item.paused && (item.days || []).includes(weekday)).forEach((item) => addAlert(alerts, item, 'routine', at(today, item.startTime || '09:00'), item.title, 'De routine staat klaar', '#routines'));
   bucket.filter((item) => !item.completed).forEach((item) => addAlert(alerts, item, 'bucket', at(item.reminder), item.activity, 'Herinnering uit de gezinsbucketlist', '#assistant?module=bucket_list'));
+  babysitting.forEach((item) => { const due = atDateTime(item.startAt); if (due) due.setHours(due.getHours() - 1); addAlert(alerts, item, 'babysitting', due, `Oppasmoment over een uur: ${item.title}`, 'Controleer instructies en contactgegevens', '#babysitter'); });
+  packing.forEach((item) => { const list = Array.isArray(item.items) ? item.items : []; const complete = list.length && list.every((entry) => typeof entry === 'object' && (entry.checked || entry.completed || entry.done)); if (!complete) addAlert(alerts, item, 'packing', at(item.date, '08:00'), `Meeneemlijst: ${item.title}`, 'De lijst is nog niet volledig afgevinkt', '#packing'); });
   return alerts.sort((a, b) => a.due - b.due);
 }

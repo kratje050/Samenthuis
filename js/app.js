@@ -7,6 +7,7 @@ import { openGlobalSearch } from './components/global-search.js';
 import { openQuickAdd } from './components/quick-add.js';
 import { cloudStatusLabel, openCloudDialog } from './components/cloud-dialog.js';
 import { initializePwaInstallOffer } from './services/pwa-install-service.js';
+import { initializeNotificationOffer } from './services/notification-offer-service.js';
 import { accountDisplayName } from './utils/account.js';
 import { TrashService } from './services/trash-service.js';
 
@@ -134,12 +135,16 @@ async function start() {
     await initializeRouter();
     initializeAccountGreetingUpdates();
     initializePwaInstallOffer();
+    initializeNotificationOffer();
     window.addEventListener('samen-thuis-data-synced', () => {
       renderRoute().catch(console.error);
       services.files.retryPending().catch(() => {});
     });
     const reminders = new ReminderService(services.agenda, showInAppReminder, repositories); reminders.start();
     if (appState.settings.notifications) services.push.refreshExisting().catch(console.warn);
+    navigator.serviceWorker?.addEventListener('message', (event) => {
+      if (event.data?.type === 'PUSH_SUBSCRIPTION_CHANGED' && appState.settings.notifications) services.push.refreshExisting().catch(console.warn);
+    });
     document.querySelector('#app').setAttribute('aria-busy', 'false');
   } catch (error) {
     console.error(error);

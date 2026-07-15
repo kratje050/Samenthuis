@@ -1,4 +1,4 @@
-# Implementatierapport Samen Thuis 3.0.0
+# Implementatierapport Samen Thuis 3.0.1
 
 Datum: 15 juli 2026
 
@@ -13,7 +13,9 @@ De bestaande PWA is uitgebreid zonder het bestaande authenticatie-, gezins-, Ind
 - zoeken, type- en gezinslidfilters, kopiëren, archiveren, soft delete, herstel en conversies naar bestaande onderdelen;
 - gekoppelde workflows voor bezoekboodschappen/-taken, klusmateriaal/-taken, apparatenonderhoud en bucketlist naar uitje of gezinsmoment;
 - herhalende afvalmomenten, onderhoudsgeschiedenis, routinedaghistorie, spaardoeltransacties, prijsstatistiek en abonnementtotalen;
-- in-app- en browserherinneringen voor agenda, afval, lenen, onderhoud, garanties, abonnementen, routines en bucketlist;
+- in-app- en echte achtergrondmeldingen voor afspraken, verjaardagen, taken, medicatie, dierenarts, voorraad, houdbaarheid, uitjes, afval, lenen, onderhoud, garanties, abonnementen, routines, oppas, meeneemlijsten en andere belangrijke gezinsmomenten;
+- automatische pushinschrijving wanneer meldingen al waren toegestaan en later een gezinsaccount wordt gekoppeld;
+- een vrijwillige meldingenpopup, duidelijke iPhone-installatievoorwaarden en een servergestuurde testmelding;
 - maximaal tien lokale vorige versies, conflictdetectie met lokale en centrale inhoud en een handmatig conflictscherm;
 - definitief verwijderen met een minimale sync-tombstone; automatische bewaartermijn staat standaard uit;
 - lokale Blob-opslag, beeldcompressie, MIME- en groottecontrole en een private Supabase Storage-adapter;
@@ -30,7 +32,7 @@ IndexedDB is opgehoogd naar versie 4 met nieuwe stores:
 - `files`;
 - `fileBlobs`.
 
-De migratie [202607150001_assistant_modules.sql](./supabase/migrations/202607150001_assistant_modules.sql) is toegevoegd. Ze breidt `family_records` niet-destructief uit, voegt de nieuwe entiteitstypen en cursorindex toe, vernieuwt `sync_family_record`, beveiligt verborgen cadeaus bij select en sync, maakt de private bucket `samen-thuis-private` en voegt gezinsgebonden Storage-policies toe. De RPC leidt het gezin uitsluitend af uit `auth.uid()`.
+De migratie [202607150001_assistant_modules.sql](./supabase/migrations/202607150001_assistant_modules.sql) breidt `family_records` niet-destructief uit, voegt de nieuwe entiteitstypen en cursorindex toe, vernieuwt `sync_family_record`, beveiligt verborgen cadeaus bij select en sync, maakt de private bucket `samen-thuis-private` en voegt gezinsgebonden Storage-policies toe. [202607150002_background_notifications.sql](./supabase/migrations/202607150002_background_notifications.sql) beheert de afgeschermde pushconfiguratie, apparaatinschrijvingen, bezorglog en minuutcron. Beide migraties zijn succesvol op productie toegepast.
 
 ## Beveiliging en privacy
 
@@ -52,8 +54,8 @@ De migratie [202607150001_assistant_modules.sql](./supabase/migrations/202607150
 
 ## Bekende platform- en uitvoeringsbeperkingen
 
-- browsers, met name iOS, garanderen geen exacte uitvoering van een volledig gesloten PWA. Background Sync, Periodic Background Sync, push en de open/online/voorgrondterugval zijn daarom best effort;
-- de nieuwe productiemigratie is bewust niet automatisch op het echte Supabase-project uitgevoerd. De beheerder moet haar na back-up en test toepassen;
-- een live RLS/Storage-proef met drie gescheiden Supabase-testaccounts is niet uitgevoerd, omdat in deze werkmap geen lokale Supabase CLI/Docker-omgeving of afgescheiden testaccounts beschikbaar waren. De policies zijn wel statisch gecontroleerd;
+- Background Sync blijft platformafhankelijk, maar herinneringen voor een gesloten app gebruiken nu servergestuurde Web Push en zijn daarvan niet afhankelijk;
+- iPhone Web Push vereist iOS/iPadOS 16.4 of nieuwer en een PWA die via Safari op het beginscherm is geïnstalleerd;
+- een live RLS/Storage-proef met drie gescheiden Supabase-testaccounts is niet uitgevoerd. De policies zijn statisch gecontroleerd en de productiemigraties zijn succesvol uitgevoerd;
 - route- of kaartgegevens gebruiken bewust geen externe route-API; adressen blijven gewone tekst of een normale externe link;
 - er zijn geen bank-, supermarkt-, afval- of AI-API’s toegevoegd.

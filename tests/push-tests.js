@@ -1,6 +1,6 @@
-import { urlBase64ToUint8Array } from '../js/services/push-notification-service.js';
+import { shouldOfferNotifications, urlBase64ToUint8Array } from '../js/services/push-notification-service.js';
 import { SupabaseClient } from '../js/services/supabase-client.js';
-import { equal, includes } from './test-utils.js';
+import { assert, equal, includes } from './test-utils.js';
 
 export const pushTests = [
   ['VAPID openbare sleutel wordt correct omgezet', () => {
@@ -16,5 +16,14 @@ export const pushTests = [
     await client.invokeFunction('send-reminders', { action: 'config' }, 'user-token');
     includes(request.url, '/functions/v1/send-reminders');
     equal(request.options.headers.Authorization, 'Bearer user-token');
+  }],
+  ['meldingenpopup respecteert account, toestemming en iPhone-installatie', () => {
+    const base = { supported: true, permission: 'default', subscribed: false, signedIn: true, hasFamily: true, platform: 'android', standalone: false };
+    assert(shouldOfferNotifications(base));
+    equal(shouldOfferNotifications({ ...base, subscribed: true }), false);
+    equal(shouldOfferNotifications({ ...base, permission: 'denied' }), false);
+    equal(shouldOfferNotifications({ ...base, signedIn: false }), false);
+    equal(shouldOfferNotifications({ ...base, platform: 'ios', standalone: false }), false);
+    assert(shouldOfferNotifications({ ...base, platform: 'ios', standalone: true }));
   }]
 ];

@@ -2,6 +2,11 @@ export function pushSupported() {
   return 'Notification' in globalThis && 'serviceWorker' in navigator && 'PushManager' in globalThis;
 }
 
+export function shouldOfferNotifications({ supported, permission, subscribed, signedIn, hasFamily, platform, standalone } = {}) {
+  if (!supported || subscribed || permission === 'denied' || !signedIn || !hasFamily) return false;
+  return platform !== 'ios' || Boolean(standalone);
+}
+
 export function urlBase64ToUint8Array(value) {
   const padding = '='.repeat((4 - (value.length % 4)) % 4);
   const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -29,7 +34,7 @@ export class PushNotificationService {
     if (!pushSupported()) return { supported: false, permission: 'unsupported', subscribed: false };
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    return { supported: true, permission: Notification.permission, subscribed: Boolean(subscription) };
+    return { supported: true, permission: Notification.permission, subscribed: Boolean(subscription), endpoint: subscription?.endpoint || null };
   }
 
   async enable() {
@@ -44,13 +49,20 @@ export class PushNotificationService {
     if (!config?.publicKey) throw new Error('De pushdienst gaf geen geldige openbare sleutel terug.');
     const registration = await navigator.serviceWorker.ready;
     let subscription = await registration.pushManager.getSubscription();
+    let created = false;
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(config.publicKey)
       });
+      created = true;
     }
-    await this.#save(subscription, token);
+    try {
+      await this.#save(subscription, token);
+    } catch (error) {
+      if (created) await subscription.unsubscribe().catch(() => {});
+      throw error;
+    }
     return { subscribed: true };
   }
 
@@ -58,9 +70,26 @@ export class PushNotificationService {
     if (!pushSupported() || Notification.permission !== 'granted' || !this.auth.isSignedIn || !this.family.context || !navigator.onLine) return false;
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    if (!subscription) return false;
+    if (!subscription) {
+      await this.enable();
+      return true;
+    }
     await this.#save(subscription, await this.auth.getAccessToken());
     return true;
+  }
+
+  async test() {
+    if (!pushSupported()) throw new Error('Web Push wordt op dit apparaat niet ondersteund.');
+    if (!this.auth.isSignedIn || !this.family.context) throw new Error('Log eerst in en koppel een gezin.');
+    if (!navigator.onLine) throw new Error('Voor een testmelding is een internetverbinding nodig.');
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) throw new Error('Schakel achtergrondmeldingen eerst in.');
+    const result = await this.client.invokeFunction('send-reminders', {
+      action: 'test', endpoint: subscription.endpoint
+    }, await this.auth.getAccessToken());
+    if (!result?.sent) throw new Error('De pushdienst kon geen testmelding afleveren.');
+    return result;
   }
 
   async disable() {
