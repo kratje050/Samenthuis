@@ -1,8 +1,8 @@
 # Samen Thuis
 
-Samen Thuis is een complete Nederlandstalige gezinsplanner voor Roy, Demy, Miley en Navy. De app combineert één gezamenlijke agenda met boodschappen, huishoudelijke taken, een maaltijdplanner, voorraad, uitgaven, huisdieren en uitjes.
+Samen Thuis is een complete Nederlandstalige gezinsplanner voor Roy, Demy, Miley en Navy. De app combineert één gezamenlijke agenda met boodschappen, huishoudelijke taken, een maaltijdplanner, voorraad, uitgaven, huisdieren, uitjes en een uitgebreide gezinsassistent.
 
-Versie 2.0 is offline-first en heeft het nieuwe **Gezin & Co**-ontwerp: een rustige crème basis, koraalrode accenten, compacte gezinskaarten, lokale lijniconen, een vaste mobiele onderbalk en een helder zijmenu op grotere schermen. Alle schermen blijven IndexedDB gebruiken en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
+Versie 3.0 is offline-first en gebruikt het warme **Gezin & Co**-ontwerp: een rustige crème basis, koraalrode accenten, compacte gezinskaarten, lokale lijniconen, een vaste mobiele onderbalk en een helder zijmenu op grotere schermen. Alle schermen gebruiken IndexedDB en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
 
 ## Mogelijkheden
 
@@ -29,6 +29,22 @@ Versie 2.0 is offline-first en heeft het nieuwe **Gezin & Co**-ontwerp: een rust
 - installeerbare PWA met lokale app-iconen, offline cache, updatecontrole en best-effort achtergrondsynchronisatie;
 - optionele e-mailaccounts, één gezamenlijk gezin, eenmalige uitnodigingscodes en automatische synchronisatie tussen telefoons;
 - beveiligde centrale opslag met Row Level Security: een ingelogde gebruiker kan uitsluitend gegevens van het eigen gezin lezen.
+
+### Gezinsassistent in versie 3.0
+
+Onder **Meer** staan de nieuwe onderdelen rustig gegroepeerd. Ze gebruiken dezelfde lokale opslag, soft deletes, outbox, zoekfunctie, back-up en optionele gezinsynchronisatie:
+
+- gezinsprikbord en gezinsinbox, inclusief omzetten naar bestaande afspraken, taken, boodschappen, uitjes en recepten;
+- “Wat mogen we vandaag niet vergeten?”, vertrek-assistent en uitgebreide paklijsten;
+- kindprofielen, routines en handmatig te kiezen gezinsmodi;
+- huisonderhoud, apparaten en garantie, “Wat ligt waar?” en de leenlijst;
+- cadeaukluis met servermatig voorbereide gebruikersuitsluiting, afvalkalender, oppasmodus en offline noodkaarten;
+- vaste lasten, abonnementen, spaardoelen en prijsgeheugen;
+- restjesplanner, bezoek- en feestplanner en besliswiel;
+- positieve beloningen en gezinsuitdagingen, gezinstijdlijn, bucketlist en klusprojecten;
+- conflictscherm, maximaal tien vorige versies per belangrijk record en definitief verwijderen vanuit de centrale prullenbak.
+
+Afbeeldingen worden vóór opslag verkleind en naar WebP gecomprimeerd. Documenten zijn beperkt tot afbeeldingen, PDF en tekst; grote of onbekende bestanden worden geweigerd. Online bestanden gaan uitsluitend naar de private bucket `samen-thuis-private` nadat de migratie is toegepast.
 
 ## Snel lokaal starten
 
@@ -121,7 +137,7 @@ Een browser of besturingssysteem geeft websites nooit de garantie dat een volled
 3. Kies **Back-up downloaden**.
 4. Bewaar het JSON-bestand op een veilige plek, bij voorkeur ook buiten het apparaat.
 
-Het bestand bevat app- en databaseversie, apparaat-ID, instellingen, gezinsleden, alle domeingegevens en de lokale outbox.
+Het bestand bevat app- en databaseversie, apparaat-ID, instellingen, gezinsleden, alle domeingegevens, assistentmodules, versiegeschiedenis, bestandsmetadata, lokale bestandsinhoud en de outbox.
 
 ## Back-up terugzetten
 
@@ -157,13 +173,15 @@ Het versiebeheer bevat [supabase/schema.sql](./supabase/schema.sql). Voer dit be
 
 Bestond het project al vóór appversie 2.0.6, voer dan één keer [supabase/realtime-update.sql](./supabase/realtime-update.sql) uit. Daarmee wordt alleen `family_records` veilig aan Supabase Realtime toegevoegd; het script is zonder problemen opnieuw uitvoerbaar.
 
+Werk een bestaand project daarna bij met [202607150001_assistant_modules.sql](./supabase/migrations/202607150001_assistant_modules.sql). Deze niet-destructieve, grotendeels idempotente migratie voegt de nieuwe entiteitstypen, cursorindex, cadeaucontrole, private Storage-bucket, Storage-policies en bijgewerkte sync-RPC toe. Maak vooraf altijd een Supabase-back-up en voer de migratie eerst in een afgescheiden testproject uit. De frontend is al voorbereid, maar foto-uploads en correcte centrale synchronisatie van de nieuwe onderdelen zijn pas online actief nadat deze migratie is uitgevoerd.
+
 Stel daarna bij **Authentication → URL Configuration** de Site URL in op `https://thuissamen.netlify.app` en voeg die URL ook toe aan Redirect URLs. Voor lokaal testen kan `http://localhost:8080/**` als extra redirect worden toegevoegd. De website bevat alleen de openbare Supabase publishable key; plaats nooit een secret key of service-role key in HTML of JavaScript.
 
 Voor meldingen terwijl de PWA gesloten is staat de Edge Function in `supabase/functions/send-reminders`. Implementeer die functie met JWT-controle uitgeschakeld zoals vastgelegd in `supabase/config.toml`; de functie controleert zelf gebruikerssessies en beveiligt de cronactie met een servercode. `schema.sql` activeert Supabase Cron en roept de functie iedere minuut aan. VAPID-sleutels worden bij het eerste gebruik binnen de Edge Function gegenereerd: de privésleutel blijft in een RLS-afgeschermde tabel en komt nooit in de browsercode terecht.
 
 ## Tests uitvoeren
 
-Pure datum-, recurrence-, kalender- en back-upvalidatietests:
+De Node-suite controleert datumfuncties, herhaling, kalenderlogica, back-upvalidatie, synchronisatie, modulefilters, berekeningen, beveiligingsregels, PWA-bestanden en prestaties:
 
 ```powershell
 npm test
@@ -177,7 +195,7 @@ Repository- en integratietests draaien in een echte browser-IndexedDB. Start de 
 http://localhost:8080/tests/test-runner.html
 ```
 
-De browsertest gebruikt een unieke tijdelijke testdatabase en verwijdert die na afloop. De suite controleert onder andere CRUD en herstel, outbox, filters en zoeken, herhaling, maaltijdingrediënten, voorraad, uitgaven, back-up samenvoegen/vervangen, heropenen van IndexedDB, Background Sync-registratie en honderden records.
+De browsertest gebruikt een unieke tijdelijke testdatabase en verwijdert die na afloop. De suite controleert onder andere CRUD en herstel, outbox, versiegeschiedenis, filters en zoeken, herhaling, maaltijdingrediënten, voorraad, uitgaven, back-up samenvoegen/vervangen, heropenen van IndexedDB, Background Sync-registratie en de volledige grote prestatiedataset uit het testplan.
 
 De globale zoekfunctie kan ook met `Ctrl+K` (Windows/Linux) of `⌘K` (macOS) worden geopend. Verwijderde gegevens uit ieder onderdeel staan bij **Meer → Instellingen → Centrale prullenbak**.
 
@@ -186,6 +204,7 @@ De globale zoekfunctie kan ook met `Ctrl+K` (Windows/Linux) of `⌘K` (macOS) wo
 - HTML5, CSS3 en vanilla JavaScript ES-modules;
 - IndexedDB met versieerbaar schema en migraties;
 - repositories als enige schrijfroute voor gewone domeinmutaties;
+- één gedeelde maar per module afgeschermde `assistantRecords`-store, plus aparte stores voor versiegeschiedenis, bestandsmetadata en Blobs;
 - atomische outboxregistratie naast ieder gewijzigd record;
 - een losse Supabase-adapter die de outbox verwerkt en centrale records zonder tweede lokale mutatie toepast;
 - UUID's, versies, apparaat-ID's, wijzigingstijden en synchronisatiestatus op ieder domeinrecord;
@@ -193,7 +212,7 @@ De globale zoekfunctie kan ook met `Ctrl+K` (Windows/Linux) of `⌘K` (macOS) wo
 - service worker en webmanifest zonder externe runtime-assets, met een zelfstandige IndexedDB/outbox-sync voor achtergrondtaken;
 - mobile-first ondernavigatie en een zijmenu vanaf tabletformaat.
 
-De volledige architectuur en ontwerpkeuzes staan in [PLAN.md](./PLAN.md).
+De volledige architectuur en ontwerpkeuzes staan in [PLAN.md](./PLAN.md). De uitgevoerde wijzigingen staan in [IMPLEMENTATION_REPORT.md](./IMPLEMENTATION_REPORT.md) en de werkelijke testresultaten in [TEST_REPORT.md](./TEST_REPORT.md).
 
 ## Fase 2 is geactiveerd
 

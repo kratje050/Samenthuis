@@ -1,5 +1,5 @@
 import { initializeDatabase } from './database/indexed-db.js';
-import { initializeState, initializeCloudState, appState, services, on } from './state.js';
+import { initializeState, initializeCloudState, appState, services, repositories, on } from './state.js';
 import { initializeRouter, renderRoute, renderSidebarMembers } from './router.js';
 import { ReminderService } from './services/reminder-service.js';
 import { showToast } from './components/toast.js';
@@ -8,6 +8,7 @@ import { openQuickAdd } from './components/quick-add.js';
 import { cloudStatusLabel, openCloudDialog } from './components/cloud-dialog.js';
 import { initializePwaInstallOffer } from './services/pwa-install-service.js';
 import { accountDisplayName } from './utils/account.js';
+import { TrashService } from './services/trash-service.js';
 
 function applyTheme(theme = 'system') {
   const resolved = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
@@ -18,6 +19,7 @@ function initializeConnectivity() {
   const banner = document.querySelector('#offline-banner');
   const update = () => { banner.hidden = navigator.onLine; };
   window.addEventListener('online', () => { update(); showToast(appState.cloud.family ? 'Je bent weer online. Wijzigingen worden gesynchroniseerd.' : 'Je bent weer online. De app blijft lokaal werken.'); });
+  window.addEventListener('online', () => services.files?.retryPending().catch(() => {}));
   window.addEventListener('offline', update);
   update();
 }
@@ -100,9 +102,12 @@ async function registerServiceWorker() {
   if (!('serviceWorker' in navigator) || location.protocol === 'file:') return null;
   const registration = await navigator.serviceWorker.register('./service-worker.js');
   const banner = document.querySelector('#update-banner');
+  let waitingWorker = registration.waiting;
+  const applyUpdate = document.querySelector('#apply-update');
+  applyUpdate.addEventListener('click', () => waitingWorker?.postMessage({ type: 'SKIP_WAITING' }));
   const showUpdate = (worker) => {
+    waitingWorker = worker;
     banner.hidden = false;
-    document.querySelector('#apply-update').onclick = () => worker.postMessage({ type: 'SKIP_WAITING' });
   };
   if (registration.waiting) showUpdate(registration.waiting);
   registration.addEventListener('updatefound', () => {
@@ -119,6 +124,7 @@ async function start() {
     applyTheme(localStorage.getItem('samen-thuis-theme') || 'light');
     await initializeDatabase();
     await initializeState();
+    await new TrashService(repositories, services.files).purgeExpired(appState.settings.trashRetentionDays || 0);
     await initializeCloudState();
     applyTheme(appState.settings.theme);
     initializeConnectivity(); initializeThemeToggle(); initializeGlobalActions(); initializeCloudUi();
@@ -128,8 +134,11 @@ async function start() {
     await initializeRouter();
     initializeAccountGreetingUpdates();
     initializePwaInstallOffer();
-    window.addEventListener('samen-thuis-data-synced', () => renderRoute().catch(console.error));
-    const reminders = new ReminderService(services.agenda, showInAppReminder); reminders.start();
+    window.addEventListener('samen-thuis-data-synced', () => {
+      renderRoute().catch(console.error);
+      services.files.retryPending().catch(() => {});
+    });
+    const reminders = new ReminderService(services.agenda, showInAppReminder, repositories); reminders.start();
     if (appState.settings.notifications) services.push.refreshExisting().catch(console.warn);
     document.querySelector('#app').setAttribute('aria-busy', 'false');
   } catch (error) {

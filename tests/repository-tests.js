@@ -1,4 +1,4 @@
-import { initializeDatabase, closeDatabaseForTests } from '../js/database/indexed-db.js';
+import { initializeDatabase, closeDatabaseForTests, withTransaction } from '../js/database/indexed-db.js';
 import { AppointmentRepository } from '../js/repositories/appointment-repository.js';
 import { ShoppingRepository } from '../js/repositories/shopping-repository.js';
 import { TaskRepository } from '../js/repositories/task-repository.js';
@@ -8,6 +8,8 @@ import { ExpenseRepository } from '../js/repositories/expense-repository.js';
 import { OutboxRepository } from '../js/repositories/outbox-repository.js';
 import { ActivityRepository } from '../js/repositories/activity-repository.js';
 import { TemplateRepository } from '../js/repositories/template-repository.js';
+import { ModuleRepository } from '../js/repositories/module-repository.js';
+import { HistoryRepository } from '../js/repositories/history-repository.js';
 import { AgendaService } from '../js/services/agenda-service.js';
 import { addMealIngredientsToShopping } from '../js/services/meal-service.js';
 import { getInventoryWarning } from '../js/services/inventory-service.js';
@@ -15,7 +17,7 @@ import { summarizeExpenses } from '../js/services/expense-service.js';
 import { createBackupObject } from '../js/services/backup-service.js';
 import { importBackup } from '../js/services/import-service.js';
 import { nextTaskDate } from '../js/services/recurrence-service.js';
-import { MEMBER_IDS } from '../js/config.js';
+import { MEMBER_IDS, STORES } from '../js/config.js';
 import { SearchService } from '../js/services/search-service.js';
 import { TrashService } from '../js/services/trash-service.js';
 import { getBackupStatus } from '../js/services/backup-service.js';
@@ -24,7 +26,7 @@ import { assert, equal } from './test-utils.js';
 
 export async function runRepositoryTests(report) {
   await initializeDatabase();
-  const appointments=new AppointmentRepository(),shopping=new ShoppingRepository(),tasks=new TaskRepository(),meals=new MealRepository(),inventory=new InventoryRepository(),expenses=new ExpenseRepository(),outbox=new OutboxRepository(),activity=new ActivityRepository(),templates=new TemplateRepository();
+  const appointments=new AppointmentRepository(),shopping=new ShoppingRepository(),tasks=new TaskRepository(),meals=new MealRepository(),inventory=new InventoryRepository(),expenses=new ExpenseRepository(),outbox=new OutboxRepository(),activity=new ActivityRepository(),templates=new TemplateRepository(),notices=new ModuleRepository('notice'),history=new HistoryRepository();
   let appointment, shoppingItem;
   await report('afspraak toevoegen',async()=>{appointment=await appointments.create({title:'Test zwemles',date:'2026-07-15',startTime:'15:00',endTime:'16:00',allDay:false,category:'Gezin',members:[MEMBER_IDS.roy],notes:'badpak',recurrence:'none'});assert(appointment.id);equal((await appointments.getById(appointment.id)).title,'Test zwemles')});
   await report('afspraak wijzigen',async()=>{const changed=await appointments.update(appointment.id,{location:'Zwembad'});equal(changed.location,'Zwembad');equal(changed.version,2)});
@@ -32,6 +34,8 @@ export async function runRepositoryTests(report) {
   await report('afspraak herstellen',async()=>{await appointments.restore(appointment.id);assert(await appointments.getById(appointment.id))});
   await report('outbox bevat wijzigingen',async()=>assert((await outbox.getPendingChanges()).length>=4));
   await report('wijzigingen verschijnen in gezinsactiviteit',async()=>{const records=await activity.recent();assert(records.some(item=>item.recordId===appointment.id&&item.action==='update'));assert(records.every(item=>item.actorName))});
+  await report('assistentrepository scheidt modules en schrijft versiegeschiedenis',async()=>{const notice=await notices.create({title:'Testbericht',message:'Hallo',status:'active'});await notices.update(notice.id,{message:'Bijgewerkt'});equal((await notices.getAll()).length,1);const versions=await history.forRecord('notice',notice.id);equal(versions.length,1);equal(versions[0].snapshot.message,'Hallo')});
+  await report('nieuwe module ondersteunt soft delete en herstel',async()=>{const notice=(await notices.getAll())[0];await notices.softDelete(notice.id);equal(await notices.getById(notice.id),null);await notices.restore(notice.id);assert(await notices.getById(notice.id))});
   await report('terugkerende afspraak en gezinsfilter',async()=>{await appointments.create({title:'Werkdagritme',date:'2026-07-13',startTime:'09:00',allDay:false,category:'Werk',members:[MEMBER_IDS.demy],notes:'planning',recurrence:'daily',recurrenceUntil:'2026-07-17'});const service=new AgendaService(appointments);equal((await service.occurrencesBetween(new Date(2026,6,13),new Date(2026,6,17),{member:MEMBER_IDS.demy})).length,5);equal((await service.occurrencesBetween(new Date(2026,6,13),new Date(2026,6,17),{query:'planning'})).length,5)});
   await report('boodschap toevoegen en afvinken',async()=>{shoppingItem=await shopping.create({productName:'Melk',quantity:2,unit:'pak',category:'Zuivel',checked:false});await shopping.update(shoppingItem.id,{checked:true,checkedAt:new Date().toISOString()});assert((await shopping.getById(shoppingItem.id)).checked)});
   await report('taak toevoegen en volgende herhaling',async()=>{const task=await tasks.create({title:'Stofzuigen',date:'2026-07-15',recurrence:'weekly',status:'open'});equal(nextTaskDate(task,new Date(2026,6,15)),'2026-07-22')});
@@ -48,4 +52,5 @@ export async function runRepositoryTests(report) {
   await report('back-up vervangen',async()=>{await importBackup(backup,'replace');assert((await appointments.getAll()).some(item=>item.title==='Test zwemles'))});
   await report('gegevens blijven na database heropenen',async()=>{const id=(await appointments.getAll())[0].id;await closeDatabaseForTests();const fresh=new AppointmentRepository();assert(await fresh.getById(id))});
   await report('honderden records blijven bruikbaar',async()=>{const start=performance.now();for(let i=0;i<220;i++){await appointments.create({title:`Prestatie afspraak ${i}`,date:`2026-08-${String(i%28+1).padStart(2,'0')}`,startTime:'10:00',allDay:false,category:'Gezin',members:[MEMBER_IDS.roy],recurrence:'none'});await shopping.create({productName:`Prestatie product ${i}`,quantity:1,unit:'stuk',category:'Overig',checked:false})}const service=new AgendaService(appointments);equal((await service.occurrencesBetween(new Date(2026,7,1),new Date(2026,7,31),{query:'Prestatie'})).length,220);assert(performance.now()-start<15000,'Prestatieproef duurde te lang')});
+  await report('grote prestatiedataset blijft snel doorzoekbaar',async()=>{const start=performance.now();const now=new Date().toISOString();await withTransaction([STORES.appointments,STORES.tasks,STORES.shopping,STORES.assistant],'readwrite',(tx)=>{const appointmentStore=tx.objectStore(STORES.appointments),taskStore=tx.objectStore(STORES.tasks),shoppingStore=tx.objectStore(STORES.shopping),assistantStore=tx.objectStore(STORES.assistant);for(let i=0;i<1000;i++){appointmentStore.put({id:`90000000-0000-4000-8000-${String(i).padStart(12,'0')}`,title:`Belasting afspraak ${i}`,date:`2026-09-${String(i%28+1).padStart(2,'0')}`,startTime:'09:00',allDay:false,recurrence:'none',deletedAt:null,updatedAt:now,version:1});taskStore.put({id:`91000000-0000-4000-8000-${String(i).padStart(12,'0')}`,title:`Belasting taak ${i}`,status:'open',deletedAt:null,updatedAt:now,version:1});shoppingStore.put({id:`92000000-0000-4000-8000-${String(i).padStart(12,'0')}`,productName:`Belasting boodschap ${i}`,checked:false,deletedAt:null,updatedAt:now,version:1})}for(let i=0;i<500;i++){assistantStore.put({id:`93000000-0000-4000-8000-${String(i).padStart(12,'0')}`,module:'price_history',productName:'Melk',store:`Winkel ${i%5}`,quantity:1,price:1+i/1000,date:'2026-07-15',deletedAt:null,updatedAt:now,version:1});assistantStore.put({id:`94000000-0000-4000-8000-${String(i).padStart(12,'0')}`,module:'family_memory',title:`Moment ${i}`,date:'2026-07-15',deletedAt:null,updatedAt:now,version:1})}for(let i=0;i<250;i++){assistantStore.put({id:`95000000-0000-4000-8000-${String(i).padStart(12,'0')}`,module:'appliance',name:`Apparaat ${i}`,status:'active',deletedAt:null,updatedAt:now,version:1});assistantStore.put({id:`96000000-0000-4000-8000-${String(i).padStart(12,'0')}`,module:'maintenance',title:`Onderhoud ${i}`,status:'planned',deletedAt:null,updatedAt:now,version:1})}});const priceRepo=new ModuleRepository('price_history'),memoryRepo=new ModuleRepository('family_memory'),applianceRepo=new ModuleRepository('appliance'),maintenanceRepo=new ModuleRepository('maintenance');assert((await appointments.getAll()).length>=1000);assert((await tasks.getAll()).length>=1000);assert((await shopping.getAll()).length>=1000);equal((await priceRepo.getAll()).length,500);equal((await memoryRepo.getAll()).length,500);equal((await applianceRepo.getAll()).length,250);equal((await maintenanceRepo.getAll()).length,250);assert(performance.now()-start<10000,'Grote prestatiedataset duurde te lang')});
 }

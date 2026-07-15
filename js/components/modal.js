@@ -37,10 +37,10 @@ export function openModal({ title, content, submitLabel = 'Opslaan', cancelLabel
   activeCleanup = () => { document.removeEventListener('keydown', keyHandler); previouslyFocused?.focus?.(); onClose?.(); };
   if (onSubmit) backdrop.querySelector('form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const submit = event.submitter;
+    const submit = event.submitter || backdrop.querySelector('.modal-save');
     const error = backdrop.querySelector('.form-error');
     error.hidden = true;
-    submit.disabled = true;
+    if (submit) submit.disabled = true;
     try {
       const shouldClose = await onSubmit(new FormData(event.currentTarget), event.currentTarget);
       if (shouldClose !== false) closeModal();
@@ -48,7 +48,7 @@ export function openModal({ title, content, submitLabel = 'Opslaan', cancelLabel
       error.textContent = exception.message || 'Opslaan is niet gelukt. Probeer het opnieuw.';
       error.hidden = false;
       error.focus?.();
-    } finally { submit.disabled = false; }
+    } finally { if (submit) submit.disabled = false; }
   });
   root.append(backdrop);
   document.body.style.overflow = 'hidden';

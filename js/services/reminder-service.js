@@ -1,13 +1,15 @@
 import { dateTimeForRecord, toDateKey } from '../utils/dates.js';
 import { showNotification } from './notification-service.js';
+import { collectFamilyReminders } from './family-reminder-service.js';
 
 const shown = new Set();
 const reminderMinutes = { at_time: 0, min15: 15, min30: 30, hour1: 60, day1: 1440 };
 
 export class ReminderService {
-  constructor(agendaService, onInAppReminder) {
+  constructor(agendaService, onInAppReminder, repositories = null) {
     this.agendaService = agendaService;
     this.onInAppReminder = onInAppReminder;
+    this.repositories = repositories;
   }
 
   start() {
@@ -36,6 +38,14 @@ export class ReminderService {
         const message = `${item.allDay ? 'Vandaag' : item.startTime || ''}${item.location ? ` · ${item.location}` : ''}`;
         const notified = await showNotification(item.title, { body: message, tag: key, data: { route: '#agenda' } });
         if (!notified) this.onInAppReminder?.({ title: item.title, message });
+      }
+    }
+    const familyAlerts = await collectFamilyReminders(this.repositories, now);
+    for (const alert of familyAlerts) {
+      if (alert.due <= now && now - alert.due < 86400000 && !shown.has(alert.key)) {
+        shown.add(alert.key);
+        const notified = await showNotification(alert.title, { body: alert.message, tag: alert.key, data: { route: alert.route } });
+        if (!notified) this.onInAppReminder?.({ title: alert.title, message: alert.message });
       }
     }
     sessionStorage.setItem('samen-thuis-reminder-check', toDateKey(now));

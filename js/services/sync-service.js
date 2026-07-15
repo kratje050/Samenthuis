@@ -1,14 +1,10 @@
-const ENTITY_ALIASES = Object.freeze({
-  appointment: 'appointment', appointments: 'appointment',
-  shopping: 'shopping',
-  task: 'task', tasks: 'task',
-  meal: 'meal', meals: 'meal',
-  inventory: 'inventory',
-  expense: 'expense', expenses: 'expense',
-  pet: 'pet', pets: 'pet',
-  outing: 'outing', outings: 'outing',
-  settings: 'settings', activity: 'activity', activities: 'activity', template: 'template', templates: 'template'
-});
+import { ENTITY_ALIASES } from '../sync/entity-catalog-module.js';
+
+export function pullCursorQuery(cursor) {
+  if (!cursor?.serverUpdatedAt) return {};
+  if (!cursor.recordId) return { server_updated_at: `gt.${cursor.serverUpdatedAt}` };
+  return { or: `(server_updated_at.gt.${cursor.serverUpdatedAt},and(server_updated_at.eq.${cursor.serverUpdatedAt},record_id.gt.${cursor.recordId}))` };
+}
 
 function newestByRecord(items) {
   const latest = new Map();
@@ -42,7 +38,10 @@ export class SyncService {
       appointment: repositories.appointments, shopping: repositories.shopping, task: repositories.tasks,
       meal: repositories.meals, inventory: repositories.inventory, expense: repositories.expenses,
       pet: repositories.pets, outing: repositories.outings, settings: repositories.settings,
-      activity: repositories.activity, template: repositories.templates
+      activity: repositories.activity, template: repositories.templates,
+      ...(repositories.history ? { history: repositories.history } : {}),
+      ...(repositories.files ? { file: repositories.files } : {}),
+      ...(repositories.modules || {})
     };
   }
 
@@ -155,7 +154,7 @@ export class SyncService {
         deviceId: response.device_id || response.payload.deviceId
       } : payload;
       if (response?.conflict) conflicts += 1;
-      await this.repositoryByEntity[change.canonical].markSynced(change.recordId, remote, { conflict: Boolean(response?.conflict) });
+      await this.repositoryByEntity[change.canonical].markSynced(change.recordId, remote, { conflict: Boolean(response?.conflict), localRecord: change.payload });
       await this.repositories.outbox.markRecordProcessed(change.entityType, change.recordId, Number(change.version || 1));
     }
     return conflicts;
@@ -163,22 +162,34 @@ export class SyncService {
 
   async pull() {
     const token = await this.auth.getAccessToken();
-    const rows = await this.client.select('family_records', {
-      select: 'entity_type,record_id,payload,version,updated_at,deleted_at,device_id',
-      order: 'updated_at.asc'
-    }, token);
+    const cursorKey = `sync-cursor:${this.family.context.family_id}`;
+    let cursor = await this.cloudRepository.get(cursorKey);
     let applied = 0;
-    for (const row of rows || []) {
-      const entityType = ENTITY_ALIASES[row.entity_type];
-      const repository = this.repositoryByEntity[entityType];
-      if (!repository || !row.payload) continue;
-      const record = {
-        ...row.payload, id: row.record_id, version: Number(row.version || 1),
-        updatedAt: row.updated_at, deletedAt: row.deleted_at ?? row.payload.deletedAt ?? null,
-        deviceId: row.device_id || row.payload.deviceId, syncStatus: 'synced'
-      };
-      const result = await repository.applyRemote(record);
-      if (result.applied) applied += 1;
+    const pageSize = 500;
+    for (let page = 0; page < 100; page += 1) {
+      const rows = await this.client.select('family_records', {
+        select: 'entity_type,record_id,payload,version,updated_at,deleted_at,device_id,server_updated_at',
+        order: 'server_updated_at.asc,record_id.asc', limit: pageSize, ...pullCursorQuery(cursor)
+      }, token);
+      for (const row of rows || []) {
+        const entityType = ENTITY_ALIASES[row.entity_type];
+        const repository = this.repositoryByEntity[entityType];
+        if (!repository || !row.payload) continue;
+        const record = {
+          ...row.payload, id: row.record_id, version: Number(row.version || 1),
+          updatedAt: row.updated_at, deletedAt: row.deleted_at ?? row.payload.deletedAt ?? null,
+          deviceId: row.device_id || row.payload.deviceId, syncStatus: 'synced'
+        };
+        const result = await repository.applyRemote(record);
+        if (result.applied) applied += 1;
+      }
+      const last = rows?.at?.(-1);
+      if (!last?.server_updated_at) break;
+      const nextCursor = { serverUpdatedAt: last.server_updated_at, recordId: last.record_id };
+      if (cursor?.serverUpdatedAt === nextCursor.serverUpdatedAt && cursor?.recordId === nextCursor.recordId) break;
+      cursor = nextCursor;
+      await this.cloudRepository.set(cursorKey, cursor);
+      if (rows.length < pageSize) break;
     }
     if (applied) await this.onDataChange({ applied });
     return applied;

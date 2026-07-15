@@ -6,9 +6,17 @@ const mapping = {
   afspraken: STORES.appointments, boodschappen: STORES.shopping, taken: STORES.tasks,
   maaltijden: STORES.meals, voorraad: STORES.inventory, uitgaven: STORES.expenses,
   huisdieren: STORES.pets, uitjes: STORES.outings, activiteiten: STORES.activity,
-  sjablonen: STORES.templates, outbox: STORES.outbox
+  sjablonen: STORES.templates, assistent: STORES.assistant, geschiedenis: STORES.history,
+  bestanden: STORES.files, outbox: STORES.outbox
 };
 const LAST_BACKUP_KEY = 'samen-thuis-last-backup';
+
+async function blobToBase64(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return btoa(binary);
+}
 
 export function getBackupStatus(now = new Date()) {
   const stored = localStorage.getItem(LAST_BACKUP_KEY);
@@ -27,6 +35,10 @@ export async function createBackupObject() {
     instellingen: settings, gezinsleden: settings.members || []
   };
   for (const [key, store] of Object.entries(mapping)) backup[key] = await getStoreRecords(store);
+  const blobs = await getStoreRecords(STORES.fileBlobs);
+  backup.bestandInhoud = await Promise.all(blobs.map(async ({ id, blob }) => ({
+    id, type: blob.type || 'application/octet-stream', data: await blobToBase64(blob)
+  })));
   return backup;
 }
 

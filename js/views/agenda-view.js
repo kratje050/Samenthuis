@@ -13,6 +13,8 @@ import { downloadIcs, icsToAppointments } from '../services/ics-service.js';
 import { arrayValue, bindAction, boolValue, categoryColor, consumeHashAction, e, emptyState, field, handleError, numberValue, textArea, value } from './view-helpers.js';
 import { icon } from '../utils/icons.js';
 import { openBirthdayDialog } from '../components/birthday-dialog.js';
+import { uuid } from '../utils/uuid.js';
+import { DEPARTURE_PRESETS, presetDepartureItems } from '../services/departure-service.js';
 
 let mode = 'today';
 let cursor = new Date();
@@ -25,7 +27,11 @@ function consumeBirthdayAction() {
   return matches;
 }
 
-function appointmentForm(record = {}) {
+function departureRow(item = {}) {
+  return `<div class="complex-row departure-editor-row" data-departure-row data-row-id="${e(item.id || uuid())}"><input data-key="done" type="checkbox" ${item.done ? 'checked' : ''} aria-label="Afgevinkt"><input data-key="text" value="${e(item.text || '')}" placeholder="Meenemen of controleren"><select data-key="memberId" aria-label="Verantwoordelijke"><option value="">Niet toegewezen</option>${appState.settings.members.map((member) => `<option value="${e(member.id)}" ${member.id === item.memberId ? 'selected' : ''}>${e(member.name)}</option>`).join('')}</select><label><input data-key="essential" type="checkbox" ${item.essential ? 'checked' : ''}> Essentieel</label><button class="mini-action danger" type="button" data-remove-departure aria-label="Regel verwijderen">×</button></div>`;
+}
+
+function appointmentForm(record = {}, packingLists = []) {
   const settings = appState.settings;
   const memberChecks = settings.members.map((member) => `<label><input type="checkbox" name="members" value="${e(member.id)}" ${(record.members || []).includes(member.id) ? 'checked' : ''}> <span class="member-dot" style="--member-color:${member.color}"></span>${e(member.name)}</label>`).join('');
   const recurrenceOptions = [
@@ -53,16 +59,29 @@ function appointmentForm(record = {}) {
     ${field('reminder', 'Herinnering', { reminder: record.reminder || 'none' }, { className: 'full', options: reminderOptions })}
     ${field('reminderCustom', 'Eigen minuten vooraf', record, { type: 'number', min: '0', className: 'full' })}
     ${textArea('description', 'Omschrijving (optioneel)', record, 'full')}
+    <fieldset class="full departure-fields"><legend>Vertrek-assistent</legend><div class="form-grid">
+      ${timePicker('plannedDepartureTime', 'Geplande vertrektijd', record.plannedDepartureTime || '')}
+      ${field('travelMinutes', 'Reistijd in minuten', record, { type: 'number', min: '0' })}
+      ${field('address', 'Adres', record, { className: 'full' })}
+      ${textArea('parkingInfo', 'Parkeerinformatie', record, 'full')}
+      ${field('driverId', 'Wie rijdt?', { driverId: record.driverId || '' }, { options: [{value:'',label:'Nog niet bepaald'}, ...settings.members.map((member) => ({value:member.id,label:member.name}))] })}
+      ${field('packingListId', 'Gekoppelde paklijst', { packingListId: record.packingListId || '' }, { options: [{value:'',label:'Geen paklijst'}, ...packingLists.map((list) => ({value:list.id,label:list.title}))] })}
+      ${textArea('departureInstructions', 'Belangrijke vertrekinstructies', record, 'full')}
+      <div class="field full departure-preset"><label for="departurePreset">Herbruikbare vertrekchecklist</label><div class="inline-field"><select id="departurePreset"><option value="">Kies een voorbeeld</option>${Object.keys(DEPARTURE_PRESETS).map((type) => `<option value="${e(type)}">${e(type)}</option>`).join('')}</select><button class="button secondary small" type="button" data-apply-departure-preset>Voorbeeld toevoegen</button></div></div>
+      <fieldset class="field full complex-field" data-departure-checklist><legend>Vertrekchecklist</legend><div data-departure-rows>${(record.departureChecklist || []).map(departureRow).join('')}</div><button class="button secondary small" type="button" data-add-departure>＋ Checklistregel</button></fieldset>
+    </div></fieldset>
   </div>`;
 }
 
-function openAppointment(record = null, copy = false) {
+async function openAppointment(record = null, copy = false) {
   const source = record ? { ...record, id: undefined, title: copy ? `${record.title} (kopie)` : record.title } : {};
   const editing = record && !copy;
+  const packingLists = await repositories.modules.packing.getAll();
   const modal = openModal({
-    title: editing ? 'Afspraak aanpassen' : 'Nieuwe afspraak', content: appointmentForm(source), submitLabel: 'Opslaan', wide: true,
-    onSubmit: async (data) => {
+    title: editing ? 'Afspraak aanpassen' : 'Nieuwe afspraak', content: appointmentForm(source, packingLists), submitLabel: 'Opslaan', wide: true,
+    onSubmit: async (data, form) => {
       const members = arrayValue(data, 'members');
+      const departureChecklist = [...form.querySelectorAll('[data-departure-row]')].map((row) => ({ id: row.dataset.rowId || uuid(), text: row.querySelector('[data-key="text"]').value.trim(), memberId: row.querySelector('[data-key="memberId"]').value, essential: row.querySelector('[data-key="essential"]').checked, done: row.querySelector('[data-key="done"]').checked })).filter((item) => item.text);
       const appointment = {
         title: value(data, 'title'), description: value(data, 'description'), date: value(data, 'date'),
         allDay: boolValue(data, 'allDay'), startTime: value(data, 'startTime'), endTime: value(data, 'endTime'),
@@ -71,6 +90,9 @@ function openAppointment(record = null, copy = false) {
         recurrence: value(data, 'recurrence', 'none'), recurrenceUntil: value(data, 'recurrenceUntil') || null,
         recurrenceInterval: numberValue(data, 'recurrenceInterval', 1), recurrenceUnit: value(data, 'recurrenceUnit', 'days'),
         reminder: value(data, 'reminder', 'none'), reminderCustom: numberValue(data, 'reminderCustom', 0), notes: value(data, 'notes'),
+        plannedDepartureTime: value(data, 'plannedDepartureTime'), travelMinutes: numberValue(data, 'travelMinutes', 0),
+        address: value(data, 'address'), parkingInfo: value(data, 'parkingInfo'), driverId: value(data, 'driverId'),
+        packingListId: value(data, 'packingListId'), departureInstructions: value(data, 'departureInstructions'), departureChecklist,
         completed: editing ? Boolean(record.completed) : false
       };
       if (appointment.category === 'Verjaardag') {
@@ -90,6 +112,18 @@ function openAppointment(record = null, copy = false) {
   const recurrence = modal.querySelector('[name="recurrence"]');
   const toggleRecurrence = () => modal.querySelectorAll('.recurrence-custom').forEach((field) => field.hidden = recurrence.value !== 'custom');
   recurrence.addEventListener('change', toggleRecurrence); toggleRecurrence();
+  modal.addEventListener('click', (event) => {
+    if (event.target.closest('[data-add-departure]')) modal.querySelector('[data-departure-rows]').insertAdjacentHTML('beforeend', departureRow());
+    if (event.target.closest('[data-apply-departure-preset]')) {
+      const type = modal.querySelector('#departurePreset').value;
+      if (!type) return showToast('Kies eerst een vertrekvoorbeeld.', 'error');
+      const existing = new Set([...modal.querySelectorAll('[data-departure-row] [data-key="text"]')].map((input) => input.value.trim().toLocaleLowerCase('nl-NL')));
+      const items = presetDepartureItems(type).filter((item) => !existing.has(item.text.toLocaleLowerCase('nl-NL')));
+      modal.querySelector('[data-departure-rows]').insertAdjacentHTML('beforeend', items.map(departureRow).join(''));
+      showToast(`${items.length} checklistitem${items.length === 1 ? '' : 's'} toegevoegd.`);
+    }
+    event.target.closest('[data-remove-departure]')?.closest('[data-departure-row]')?.remove();
+  });
 }
 
 function rangeForMode() {
@@ -132,6 +166,8 @@ async function refresh() {
 
 export const agendaView = {
   async render() {
+    const queryMember = new URLSearchParams(location.hash.split('?')[1] || '').get('member');
+    if (queryMember && appState.settings.members.some((member) => member.id === queryMember)) filters.member = queryMember;
     const settings = appState.settings;
     return `<section class="page-stack agenda-page">
       <div class="page-header agenda-desktop-actions"><p class="muted">Eén gezamenlijke gezinsagenda, altijd offline beschikbaar.</p><div class="page-actions"><button class="button secondary" id="import-ics">Importeren</button><button class="button secondary" id="export-ics">Exporteren</button><button class="button secondary" type="button" data-add-birthday>${icon('birthday')} Verjaardag toevoegen</button><button class="button" id="new-appointment">${icon('plus')} Nieuwe afspraak</button><input class="sr-only" id="ics-file" type="file" accept="text/calendar,.ics"></div></div>

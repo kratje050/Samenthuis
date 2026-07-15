@@ -7,6 +7,7 @@ import { addDays, toDateKey } from '../utils/dates.js';
 import { bindAction, consumeHashAction, e, emptyState, field, handleError, numberValue, textArea, value } from './view-helpers.js';
 import { accountDisplayName } from '../utils/account.js';
 import { icon } from '../utils/icons.js';
+import { addRewardProgress } from '../services/household-assistant-service.js';
 
 let taskFilters = { scope: 'all', status: 'open' };
 
@@ -15,8 +16,9 @@ function currentMemberId() {
   return name ? appState.settings.members.find((member) => member.name.toLocaleLowerCase('nl-NL') === name)?.id || '' : '';
 }
 
-function taskForm(record = {}) {
+function taskForm(record = {}, rewards = []) {
   const members = appState.settings.members;
+  const rewardFields = appState.settings.rewardsEnabled !== false && rewards.length ? `${field('rewardId', 'Punten tellen voor', { rewardId: record.rewardId || '' }, { options: [{ value: '', label: 'Geen beloning of uitdaging' }, ...rewards.map((reward) => ({ value: reward.id, label: reward.title }))] })}${field('rewardPoints', 'Punten bij afronden', { rewardPoints: record.rewardPoints || 0 }, { type: 'number', min: '0' })}` : '';
   return `<div class="form-grid">${field('title', 'Titel', record, { required: true, className: 'full' })}${textArea('description', 'Omschrijving', record, 'full')}
     ${field('assignedTo', 'Toegewezen aan', { assignedTo: record.assignedTo || currentMemberId() }, { options: [{ value: '', label: 'Hele gezin' }, ...members.map((member) => ({ value: member.id, label: member.name }))] })}
     ${field('priority', 'Prioriteit', { priority: record.priority || 'normal' }, { options: [{ value: 'low', label: 'Laag' }, { value: 'normal', label: 'Normaal' }, { value: 'high', label: 'Hoog' }, { value: 'urgent', label: 'Dringend' }] })}
@@ -24,19 +26,21 @@ function taskForm(record = {}) {
     ${field('category', 'Categorie', { category: record.category || 'Huishouden' }, { options: ['Huishouden', 'Kinderen', 'Tuin', 'Administratie', 'Huisdieren', 'Overig'] })}
     ${field('recurrence', 'Herhaling', { recurrence: record.recurrence || 'none' }, { options: [{ value: 'none', label: 'Niet herhalen' }, { value: 'daily', label: 'Dagelijks' }, { value: 'weekly', label: 'Wekelijks' }, { value: 'monthly', label: 'Maandelijks' }, { value: 'custom', label: 'Eigen interval' }] })}
     ${field('recurrenceInterval', 'Iedere', { recurrenceInterval: record.recurrenceInterval || 1 }, { type: 'number', min: '1' })}${field('recurrenceUnit', 'Intervaleenheid', { recurrenceUnit: record.recurrenceUnit || 'days' }, { options: [{ value: 'days', label: 'dag(en)' }, { value: 'weeks', label: 'week/weken' }, { value: 'months', label: 'maand(en)' }] })}
-    ${textArea('note', 'Notitie', record, 'full')}</div>`;
+    ${rewardFields}${textArea('note', 'Notitie', record, 'full')}</div>`;
 }
 
-function openTask(record = null) {
+async function openTask(record = null) {
   const editing = Boolean(record);
+  const rewards = (await repositories.modules.reward.getAll()).filter((item) => item.status === 'active');
   openModal({
-    title: editing ? 'Taak aanpassen' : 'Nieuwe taak', content: taskForm(record || {}), submitLabel: editing ? 'Opslaan' : 'Taak toevoegen',
+    title: editing ? 'Taak aanpassen' : 'Nieuwe taak', content: taskForm(record || {}, rewards), submitLabel: editing ? 'Opslaan' : 'Taak toevoegen',
     onSubmit: async (data) => {
       const task = {
         title: value(data, 'title'), description: value(data, 'description'), assignedTo: value(data, 'assignedTo') || null,
         priority: value(data, 'priority'), date: value(data, 'date'), time: value(data, 'time'), category: value(data, 'category'),
         recurrence: value(data, 'recurrence'), recurrenceInterval: numberValue(data, 'recurrenceInterval', 1), recurrenceUnit: value(data, 'recurrenceUnit'),
-        status: editing ? record.status : 'open', note: value(data, 'note'), parentTaskId: editing ? record.parentTaskId || null : null
+        status: editing ? record.status : 'open', note: value(data, 'note'), parentTaskId: editing ? record.parentTaskId || null : null,
+        rewardId: value(data, 'rewardId'), rewardPoints: numberValue(data, 'rewardPoints', 0), rewardAwarded: editing ? Boolean(record.rewardAwarded) : false
       };
       if (!task.title) throw new Error('Vul een titel in.');
       if (editing) await repositories.tasks.update(record.id, task); else await repositories.tasks.create(task);
@@ -46,15 +50,30 @@ function openTask(record = null) {
 }
 
 async function completeTask(item) {
-  if (item.status === 'done') { await repositories.tasks.update(item.id, { status: 'open', completedAt: null }); showToast('Taak heropend.'); return; }
+  if (item.status === 'done') {
+    if (item.rewardAwarded && item.rewardId && Number(item.rewardPoints || 0) > 0) {
+      const reward = await repositories.modules.reward.getById(item.rewardId);
+      if (reward) await addRewardProgress(repositories.modules.reward, reward, -Number(item.rewardPoints), reward.approvedBy || 'heropening');
+    }
+    await repositories.tasks.update(item.id, { status: 'open', completedAt: null, rewardAwarded: false }); showToast('Taak heropend; eventuele taakpunten zijn teruggedraaid.'); return;
+  }
   const completedAt = new Date();
-  await repositories.tasks.update(item.id, { status: 'done', completedAt: completedAt.toISOString() });
+  let rewardAwarded = false;
+  let rewardMessage = '';
+  if (appState.settings.rewardsEnabled !== false && item.rewardId && Number(item.rewardPoints || 0) > 0) {
+    const reward = await repositories.modules.reward.getById(item.rewardId);
+    if (reward && reward.status === 'active') {
+      if (reward.approvalRequired && !reward.approvedBy) rewardMessage = ' De punten wachten totdat bij de beloning een volwassene is gekozen.';
+      else { await addRewardProgress(repositories.modules.reward, reward, Number(item.rewardPoints), reward.approvedBy); rewardAwarded = true; rewardMessage = ` ${item.rewardPoints} punt${Number(item.rewardPoints) === 1 ? '' : 'en'} toegekend.`; }
+    }
+  }
+  await repositories.tasks.update(item.id, { status: 'done', completedAt: completedAt.toISOString(), rewardAwarded });
   const nextDate = nextTaskDate(item, completedAt);
   if (nextDate) {
     const { id, createdAt, updatedAt, deletedAt, version, deviceId, syncStatus, updatedBy, completedAt: oldCompletedAt, ...copy } = item;
-    await repositories.tasks.create({ ...copy, date: nextDate, status: 'open', parentTaskId: item.parentTaskId || item.id });
-    showToast(`Taak afgerond; de volgende staat op ${nextDate}.`);
-  } else showToast('Taak afgerond.');
+    await repositories.tasks.create({ ...copy, date: nextDate, status: 'open', rewardAwarded: false, parentTaskId: item.parentTaskId || item.id });
+    showToast(`Taak afgerond; de volgende staat op ${nextDate}.${rewardMessage}`);
+  } else showToast(`Taak afgerond.${rewardMessage}`);
 }
 
 function taskRow(item) {
@@ -63,7 +82,7 @@ function taskRow(item) {
   return `<li class="task-row ${item.status === 'done' ? 'is-complete' : ''}">
     <button class="task-check" data-toggle-task="${item.id}" aria-label="${item.status === 'done' ? 'Heropenen' : 'Afronden'}">${item.status === 'done' ? icon('tasks') : ''}</button>
     <button class="task-row-main" type="button" data-edit-task="${item.id}"><strong>${e(item.title)}</strong><small>${member ? `<span class="tiny-avatar" style="--member-color:${member.color}">${e(String(member.icon || member.name).slice(0, 1))}</span>${e(member.name)}` : 'Gezin'}${item.time ? ` · ${e(item.time)}` : ''}${item.recurrence !== 'none' ? ' · Herhalend' : ''}</small></button>
-    <span class="priority-pill ${e(item.priority)}">${e(priority)}</span>
+    <span class="priority-pill ${e(item.priority)}">${item.rewardId && item.rewardPoints ? `${e(item.rewardPoints)} pt · ` : ''}${e(priority)}</span>
     <details class="row-action-menu"><summary aria-label="Meer acties">${icon('more')}</summary><div><button type="button" data-edit-task="${item.id}">Aanpassen</button><button type="button" class="danger" data-delete-task="${item.id}">Verwijderen</button></div></details>
   </li>`;
 }

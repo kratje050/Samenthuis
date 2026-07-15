@@ -70,7 +70,7 @@ export async function seedDatabase() {
         outings: OUTING_CATEGORIES
       },
       theme: 'light', dateFormat: 'dd-mm-yyyy', timeFormat: '24h', currency: 'EUR',
-      notifications: false, weekStartsOn: 1, greetingName: '',
+      notifications: false, weekStartsOn: 1, greetingName: '', rewardsEnabled: true,
       createdAt: now, updatedAt: now, deletedAt: null, version: 1,
       deviceId: getDeviceId(), syncStatus: 'local', updatedBy: 'system'
     });
@@ -85,7 +85,7 @@ export async function initializeDatabase() {
 
 async function migrateLegacyMemberIds() {
   const idMap = MEMBER_IDS;
-  const storeNames = [STORES.appointments, STORES.shopping, STORES.tasks, STORES.expenses, STORES.outbox];
+  const storeNames = [STORES.appointments, STORES.shopping, STORES.tasks, STORES.expenses, STORES.assistant, STORES.outbox];
   await withTransaction(storeNames, 'readwrite', async (tx, toPromise) => {
     const remap = (record) => {
       const next = { ...record };

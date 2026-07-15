@@ -37,7 +37,8 @@ export async function importBackup(backup, mode = 'merge') {
         if (mode === 'replace' || newer(source, existing)) {
           const record = { ...source, syncStatus: 'pending', updatedAt: source.updatedAt || now };
           store.put(record);
-          tx.objectStore(STORES.outbox).put({ changeId: uuid(), entityType: storeName, recordId: record.id, operation: record.deletedAt ? 'delete' : existing ? 'update' : 'create', payload: record, version: record.version || 1, changedAt: now, deviceId: getDeviceId(), processed: false });
+          const entityType = storeName === STORES.assistant ? record.module : storeName === STORES.history ? 'history' : storeName === STORES.files ? 'file' : storeName;
+          tx.objectStore(STORES.outbox).put({ changeId: uuid(), entityType, recordId: record.id, operation: record.deletedAt ? 'delete' : existing ? 'update' : 'create', payload: record, version: record.version || 1, changedAt: now, deviceId: getDeviceId(), processed: false });
         }
       }
     }
@@ -48,5 +49,15 @@ export async function importBackup(backup, mode = 'merge') {
     settingsStore.put(settingsRecord);
     tx.objectStore(STORES.outbox).put({ changeId: uuid(), entityType: 'settings', recordId: SETTINGS_ID, operation: currentSettings ? 'update' : 'create', payload: settingsRecord, version: settingsRecord.version || 1, changedAt: now, deviceId: getDeviceId(), processed: false });
   });
+  if (mode === 'replace' || (backup.bestandInhoud || []).length) {
+    await withTransaction([STORES.fileBlobs], 'readwrite', (tx) => {
+      const store = tx.objectStore(STORES.fileBlobs);
+      if (mode === 'replace') store.clear();
+      (backup.bestandInhoud || []).forEach((item) => {
+        const bytes = Uint8Array.from(atob(item.data), (character) => character.charCodeAt(0));
+        store.put({ id: item.id, blob: new Blob([bytes], { type: item.type }), updatedAt: new Date().toISOString() });
+      });
+    });
+  }
   return { mode, safetyCreated: true };
 }

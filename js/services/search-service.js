@@ -1,3 +1,5 @@
+import { ASSISTANT_MODULES } from '../modules/assistant-modules.js';
+
 const configurations = [
   { key: 'appointments', type: 'Afspraak', route: 'agenda', title: (r) => r.title, fields: ['title', 'description', 'location', 'category', 'notes', 'memberNames'], detail: (r) => [r.date, r.location].filter(Boolean).join(' · ') },
   { key: 'shopping', type: 'Boodschap', route: 'shopping', title: (r) => r.productName, fields: ['productName', 'category', 'store', 'note'], detail: (r) => [r.quantity, r.unit, r.category].filter(Boolean).join(' ') },
@@ -31,6 +33,17 @@ export class SearchService {
         updatedAt: record.updatedAt || ''
       }));
     }));
-    return groups.flat().sort((a, b) => a.score - b.score || b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title, 'nl')).slice(0, limit);
+    const moduleGroups = await Promise.all(Object.entries(ASSISTANT_MODULES).map(async ([module, definition]) => {
+      const records = await this.repositories.modules?.[module]?.getAll() || [];
+      return records.filter((record) => {
+        const haystack = normalize(Object.values(record).map((value) => Array.isArray(value) ? value.map((item) => typeof item === 'object' ? Object.values(item).join(' ') : item).join(' ') : typeof value === 'object' ? '' : value).join(' '));
+        return terms.every((term) => haystack.includes(term));
+      }).map((record) => ({
+        id: record.id, entity: module, type: definition.title, route: `assistant?module=${module}`,
+        title: record[definition.titleField] || definition.singular, detail: definition.description,
+        score: normalize(record[definition.titleField]).startsWith(terms[0]) ? 0 : 1, updatedAt: record.updatedAt || ''
+      }));
+    }));
+    return [...groups, ...moduleGroups].flat().sort((a, b) => a.score - b.score || b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title, 'nl')).slice(0, limit);
   }
 }

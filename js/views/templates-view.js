@@ -48,7 +48,7 @@ export const templatesView = {
     root.querySelector('#new-template').addEventListener('click',()=>openTemplate());
     root.querySelector('#capture-shopping').addEventListener('click',()=>captureShopping().catch(handleError));
     root.querySelector('#capture-tasks').addEventListener('click',()=>captureTasks().catch(handleError));
-    bindAction(root,'[data-apply-template]',async(button)=>{const item=await repositories.templates.getById(button.dataset.applyTemplate);if(!item)return;const count=await applyTemplate(item,repositories);showToast(`${count} item${count===1?'':'s'} toegevoegd aan ${item.templateType==='shopping'?'Boodschappen':'Taken'}.`)});
+    bindAction(root,'[data-apply-template]',async(button)=>{const item=await repositories.templates.getById(button.dataset.applyTemplate);if(!item)return;const count=await applyTemplate(item,repositories);const target=item.templateType==='shopping'?'Boodschappen':item.templateType==='packing'?'een nieuwe paklijst':'Taken';showToast(`${count} item${count===1?'':'s'} toegevoegd aan ${target}.`)});
     bindAction(root,'[data-edit-template]',async(button)=>{const item=await repositories.templates.getById(button.dataset.editTemplate);if(item)openTemplate(item)});
     bindAction(root,'[data-delete-template]',async(button)=>{const item=await repositories.templates.getById(button.dataset.deleteTemplate);if(item&&await confirmDialog({message:`“${e(item.title)}” wordt naar de prullenbak verplaatst.`})){await repositories.templates.softDelete(item.id);showToast('Sjabloon verwijderd.');await refreshTemplates()}});
     await refreshTemplates().catch(handleError);

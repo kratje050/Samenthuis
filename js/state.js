@@ -11,6 +11,9 @@ import { OutboxRepository } from './repositories/outbox-repository.js';
 import { CloudStateRepository } from './repositories/cloud-state-repository.js';
 import { ActivityRepository } from './repositories/activity-repository.js';
 import { TemplateRepository } from './repositories/template-repository.js';
+import { ModuleRepository } from './repositories/module-repository.js';
+import { HistoryRepository } from './repositories/history-repository.js';
+import { FileRepository } from './repositories/file-repository.js';
 import { AgendaService } from './services/agenda-service.js';
 import { SupabaseClient } from './services/supabase-client.js';
 import { AuthService } from './services/auth-service.js';
@@ -19,7 +22,8 @@ import { SyncService } from './services/sync-service.js';
 import { PushNotificationService } from './services/push-notification-service.js';
 import { BackgroundSyncService } from './services/background-sync-service.js';
 import { RealtimeService } from './services/realtime-service.js';
-import { SUPABASE } from './config.js';
+import { FileService } from './services/file-service.js';
+import { ASSISTANT_ENTITY_TYPES, SUPABASE } from './config.js';
 import { setActiveActor } from './utils/actor.js';
 
 const listeners = new Map();
@@ -32,6 +36,9 @@ export const repositories = {
 };
 repositories.activity = new ActivityRepository();
 repositories.templates = new TemplateRepository();
+repositories.history = new HistoryRepository();
+repositories.files = new FileRepository();
+repositories.modules = Object.fromEntries(ASSISTANT_ENTITY_TYPES.map((module) => [module, new ModuleRepository(module)]));
 
 export const appState = {
   settings: null,
@@ -82,6 +89,7 @@ services.sync = new SyncService({
   }
 });
 services.push = new PushNotificationService(supabaseClient, services.auth, services.family);
+services.files = new FileService({ repository: repositories.files, client: supabaseClient, auth: services.auth, family: services.family });
 services.realtime = new RealtimeService({
   url: SUPABASE.url,
   publishableKey: SUPABASE.publishableKey,
