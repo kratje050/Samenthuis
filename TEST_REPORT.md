@@ -1,4 +1,4 @@
-# Testrapport Samen Thuis 3.0.0
+# Testrapport Samen Thuis 3.0.1
 
 Testdatum: 15 juli 2026  
 Testomgeving: Windows, lokale Python-webserver, ingebouwde Chromium-browser, Node.js
@@ -7,9 +7,12 @@ Testomgeving: Windows, lokale Python-webserver, ingebouwde Chromium-browser, Nod
 
 | Controle | Werkelijk resultaat |
 |---|---|
-| `npm test` | 74 geslaagd, 0 mislukt |
-| `node --check` op alle JavaScriptbestanden | 127 bestanden syntactisch geldig |
-| `/tests/test-runner.html` in Chromium | 91 geslaagd, 0 mislukt |
+| `npm test` | 77 geslaagd, 0 mislukt |
+| `node --check` op alle JavaScriptbestanden | 128 bestanden syntactisch geldig |
+| `/tests/test-runner.html` in Chromium | 93 geslaagd, 0 mislukt |
+| `deno check supabase/functions/send-reminders/index.ts` | geslaagd |
+| productie Edge Function | OPTIONS 200, gebruikersactie zonder sessie correct 401 |
+| productie Supabase Cron | actief, iedere minuut; meerdere runs HTTP 200 met 2 actieve apparaatinschrijvingen |
 | statische PWA-controle | manifest, iconen en ieder app-shellbestand aanwezig |
 | statische beveiligingscontrole | geen inline `onclick`, geen service-roleverwijzing, cadeau- en Storage-policies aanwezig |
 | `git diff --check` | geen patchfouten; alleen verwachte Windows LF/CRLF-waarschuwingen |
@@ -41,9 +44,9 @@ De browserprestatietest bevat exact:
 
 ## Niet als live geslaagd geclaimd
 
-`supabase --version` gaf aan dat de Supabase CLI niet is geïnstalleerd. Daarom zijn de migratie en RLS/Storage-policies niet tegen een lokale Supabase/Postgres-runtime uitgevoerd. Ook is geen productieomgeving met drie echte testgebruikers gemuteerd. De SQL is statisch gecontroleerd op idempotente toevoegingen, eigen-gezincontrole, cadeau-uitsluiting, private bucket, Storage-policies en het ontbreken van RLS-uitschakeling.
+De twee productiemigraties zijn via de Supabase SQL Editor succesvol uitgevoerd. De bijgewerkte Edge Function start, de minuutcron is actief en de laatste serverruns gaven HTTP 200 met twee actieve pushapparaten. Er is vanuit de gecontroleerde desktopbrowser bewust geen mobiele notificatietoestemming geaccepteerd. Een zichtbare echte apparaatmelding moet daarom nog één keer per Android/iPhone worden bevestigd met **Instellingen → Testmelding sturen**.
 
-Na het toepassen van de migratie in een afgescheiden Supabase-testproject moeten aanvullend gebruiker A en B in gezin 1 en gebruiker C in gezin 2 worden getest, inclusief cadeau-uitsluiting, bestandsdownload, aangepaste `family_id`-requests en realtime pull. Pas daarna mag die specifieke live databasecontrole als geslaagd worden gemarkeerd.
+Een volledige drie-gebruikers-RLS/Storage-proef met gebruiker A en B in gezin 1 en gebruiker C in gezin 2 blijft een aparte beveiligingscontrole.
 
 ## Gevonden en herstelde fouten
 
@@ -54,3 +57,6 @@ Na het toepassen van de migratie in een afgescheiden Supabase-testproject moeten
 - Nederlandse meervoudsvorm “weken” in herhaalparser hersteld;
 - gekoppelde bestanden worden nu bij definitief verwijderen lokaal opgeruimd en online verwijderd of voor retry bewaard;
 - cursorpaginering gebruikt nu tijd én record-ID om gelijktijdig bijgewerkte records niet over te slaan.
+- een eerder toegestaan lokaal notificatierecht maakte na gezinskoppeling geen pushabonnement; dit wordt nu automatisch hersteld;
+- de server controleerde alleen afspraken; belangrijke taken, huisdieren, voorraad en gezinsassistentonderdelen zijn toegevoegd;
+- de Supabase-webeditor voegde tijdens de eerste functiondeploy broncode samen; de functie is opgeschoond, opnieuw gedeployd en daarna met opeenvolgende HTTP 200-cronruns gecontroleerd.

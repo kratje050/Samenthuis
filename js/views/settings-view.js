@@ -6,6 +6,7 @@ import { downloadBackup, getBackupStatus } from '../services/backup-service.js';
 import { importBackup, parseBackupFile } from '../services/import-service.js';
 import { clearLocalData } from '../services/data-management-service.js';
 import { notificationsSupported, requestNotificationPermission } from '../services/notification-service.js';
+import { pushSupported } from '../services/push-notification-service.js';
 import { APP_VERSION, DATABASE_VERSION } from '../config.js';
 import { e, field, handleError, value } from './view-helpers.js';
 import { TrashService } from '../services/trash-service.js';
@@ -46,9 +47,10 @@ function backgroundSyncText(status) {
 async function toggleNotifications(button) {
   button.disabled = true;
   try {
-    if (globalThis.Notification?.permission === 'default') {
-      const permission = await requestNotificationPermission();
-      if (permission !== 'granted') throw new Error('Notificatietoestemming is niet gegeven.');
+    const install = getPwaInstallState();
+    if (install.platform === 'ios' && !install.standalone) {
+      openPwaInstallDialog();
+      return;
     }
     const status = await services.push.status();
     if (status.subscribed) {
@@ -67,6 +69,7 @@ async function toggleNotifications(button) {
       showToast('Pushmeldingen ingeschakeld.');
       return;
     }
+    if (globalThis.Notification?.permission === 'denied') throw new Error('Meldingen zijn geblokkeerd. Sta ze toe via de instellingen van je telefoon of browser.');
     const permission = await requestNotificationPermission();
     if (permission !== 'granted') throw new Error(permission === 'unsupported' ? 'Notificaties worden niet ondersteund.' : 'Notificatietoestemming is niet gegeven.');
     await repositories.settings.save({ notifications: true });
@@ -75,6 +78,24 @@ async function toggleNotifications(button) {
     showToast('Lokale notificaties toegestaan.');
   } catch (error) { handleError(error); }
   finally { button.disabled = false; }
+}
+
+async function sendTestNotification(button) {
+  button.disabled = true;
+  try {
+    await services.push.test();
+    showToast('Testmelding verstuurd. Hij verschijnt als normale apparaatmelding.');
+  } catch (error) { handleError(error); }
+  finally { button.disabled = false; }
+}
+
+function notificationStatusText(pushStatus, installState) {
+  if (pushStatus.subscribed) return 'Achtergrondmeldingen zijn actief op dit apparaat.';
+  if (globalThis.Notification?.permission === 'denied') return 'Meldingen zijn geblokkeerd in de apparaat- of browserinstellingen.';
+  if (installState.platform === 'ios' && !installState.standalone) return 'Zet Samen Thuis eerst via Safari op het beginscherm; daarna kan iPhone achtergrondmeldingen ontvangen.';
+  if (!pushSupported()) return 'Dit apparaat of deze browser ondersteunt geen Web Push. In-app herinneringen blijven beschikbaar.';
+  if (!appState.cloud.family) return 'Log in en koppel het gezinsaccount om meldingen te krijgen wanneer de app gesloten is.';
+  return 'Achtergrondmeldingen staan nog uit op dit apparaat.';
 }
 
 async function updateTrashCount() {
@@ -112,13 +133,13 @@ async function openTrash() {
 }
 
 export const settingsView={
-  async render(){const settings=appState.settings;const [deletedItems,pushStatus,backgroundStatus]=await Promise.all([trashService.getDeletedItems(),services.push.status(),services.backgroundSync.status()]);const installState=getPwaInstallState();const appInstalled=installState.standalone||installState.installed;const categoryLabels={appointments:'Agenda',shopping:'Boodschappen',expenses:'Uitgaven',outings:'Uitjes'};const notificationLabel=pushStatus.subscribed?'Pushmeldingen uitschakelen':appState.cloud.family?'Pushmeldingen inschakelen':globalThis.Notification?.permission==='granted'?'Lokale meldingen zijn toegestaan':'Lokale meldingen toestaan';return `<section class="page-stack">
+  async render(){const settings=appState.settings;const [deletedItems,pushStatus,backgroundStatus]=await Promise.all([trashService.getDeletedItems(),services.push.status(),services.backgroundSync.status()]);const installState=getPwaInstallState();const appInstalled=installState.standalone||installState.installed;const categoryLabels={appointments:'Agenda',shopping:'Boodschappen',expenses:'Uitgaven',outings:'Uitjes'};const notificationLabel=pushStatus.subscribed?'Achtergrondmeldingen uitschakelen':installState.platform==='ios'&&!installState.standalone?'Installeer eerst op iPhone':appState.cloud.family?'Achtergrondmeldingen inschakelen':globalThis.Notification?.permission==='granted'?'Lokale meldingen zijn toegestaan':'Lokale meldingen toestaan';const notificationDisabled=globalThis.Notification?.permission==='denied'||(!notificationsSupported()&&installState.platform!=='ios');return `<section class="page-stack">
     <form id="general-settings" class="card"><div class="card-header"><div><h2>Weergave en voorkeuren</h2><p class="small muted">De begroeting gebruikt automatisch de naam van het ingelogde account.</p></div><button class="button small" type="submit">Opslaan</button></div><div class="form-grid">${field('theme','Thema',{theme:settings.theme},{options:[{value:'light',label:'Lichte modus'},{value:'dark',label:'Donkere modus'},{value:'system',label:'Systeemthema'}]})}${field('dateFormat','Datumformaat',settings,{options:[{value:'dd-mm-yyyy',label:'DD-MM-JJJJ'},{value:'yyyy-mm-dd',label:'JJJJ-MM-DD'}]})}${field('timeFormat','Tijdformaat',settings,{options:[{value:'24h',label:'24 uur'},{value:'12h',label:'12 uur'}]})}${field('currency','Valuta',settings,{options:[{value:'EUR',label:'Euro (€)'},{value:'USD',label:'Dollar ($)'},{value:'GBP',label:'Pond (£)'}]})}${field('weekStartsOn','Agendaweek begint op',{weekStartsOn:String(settings.weekStartsOn??1)},{options:[{value:'1',label:'Maandag'},{value:'0',label:'Zondag'}]})}</div></form>
     <form id="daily-settings" class="card"><div class="card-header"><div><h2>Dagoverzicht en bewaren</h2><p class="small muted">Kies wat op “Wat mogen we vandaag niet vergeten?” zichtbaar is.</p></div><button class="button small" type="submit">Opslaan</button></div><fieldset class="choice-field"><legend>Zichtbare kaarten</legend>${dailyCardChoices.map(([key,label])=>`<label class="choice-check"><input type="checkbox" name="dailyOverviewCards" value="${key}" ${(settings.dailyOverviewCards||dailyCardChoices.map(([item])=>item)).includes(key)?'checked':''}> ${label}</label>`).join('')}</fieldset><label class="check-row"><input type="checkbox" name="rewardsEnabled" ${settings.rewardsEnabled !== false ? 'checked' : ''}> Positieve beloningen en taakpunten inschakelen</label><div class="form-grid">${field('trashRetentionDays','Automatisch definitief verwijderen',{trashRetentionDays:String(settings.trashRetentionDays||0)},{options:[{value:'0',label:'Uitgeschakeld (aanbevolen)'},{value:'30',label:'Na 30 dagen'},{value:'60',label:'Na 60 dagen'},{value:'90',label:'Na 90 dagen'}]})}</div></form>
     <form id="member-settings" class="page-stack"><div class="page-header"><h2>Gezinsleden</h2><button class="button small" type="submit">Gezinsleden opslaan</button></div><div class="content-grid two">${memberEditor()}</div></form>
     <form id="category-settings" class="card"><div class="card-header"><div><h2>Categorieën</h2><p class="small muted">Eén categorie per regel. Wijzig, voeg toe of verwijder een regel.</p></div><button class="button small" type="submit">Categorieën opslaan</button></div><div class="form-grid">${Object.entries(settings.categories).map(([key,list])=>`<div class="field"><label for="categories-${key}">${categoryLabels[key]}</label><textarea id="categories-${key}" name="categories-${key}" rows="7">${e(list.join('\n'))}</textarea></div>`).join('')}</div></form>
     <section class="card"><div class="card-header"><div><h2>Gezinsaccount en synchronisatie</h2><p class="muted">${e(cloudStatusLabel())}</p></div><button class="button" id="open-cloud">${appState.cloud.family?'Sync beheren':services.auth.isSignedIn?'Gezin koppelen':'Inloggen'}</button></div><p class="small muted">Met een gezinsaccount worden afspraken en alle andere onderdelen automatisch tussen telefoons bijgewerkt. IndexedDB blijft de offline kopie en wijzigingen wachten veilig wanneer er geen internet is.</p><p class="small muted">${e(backgroundSyncText(backgroundStatus))}</p>${appState.cloud.family?`<p><span class="badge low">${e(appState.cloud.family.family_name)}</span> <span class="badge">${appState.cloud.sync.pending} wachtend</span></p>`:''}</section>
-    <section class="card"><h2>Notificaties</h2><p class="muted">Herinneringen verschijnen tijdens gebruik altijd in de app. Met een gekoppeld gezinsaccount kan Samen Thuis via Web Push ook een melding sturen wanneer de geïnstalleerde PWA gesloten is. Zonder account blijven lokale PWA-notificaties beschikbaar zolang de browser actief kan worden gewekt.</p><p class="small muted">Pushmeldingen hebben internet nodig; afspraken en in-app herinneringen blijven offline werken.</p><button class="button secondary" id="notification-permission" ${notificationsSupported()?'':'disabled'}>${e(notificationLabel)}</button></section>
+    <section class="card"><div class="card-header"><div><h2>Meldingen op Android, iPhone en PWA</h2><p class="muted">${e(notificationStatusText(pushStatus,installState))}</p></div><span class="badge ${pushStatus.subscribed?'low':'high'}">${pushStatus.subscribed?'Actief':'Niet actief'}</span></div><p class="small muted">Na inschakelen ontvang je normale apparaatmeldingen voor afspraken en verjaardagen, taken, medicatie en dierenarts, voorraad en houdbaarheid, afval, routines, onderhoud, leenitems, incasso's, contracten, oppasmomenten en meeneemlijsten. Deze Web Push-meldingen werken ook als Samen Thuis niet openstaat. Internet is daarvoor nodig; in-app herinneringen blijven daarnaast offline werken.</p><div class="page-actions"><button class="button secondary" id="notification-permission" ${notificationDisabled?'disabled':''}>${e(notificationLabel)}</button>${pushStatus.subscribed?'<button class="button" id="test-push-notification">Testmelding sturen</button>':''}</div>${installState.platform==='ios'?'<p class="small muted">Op iPhone is iOS/iPadOS 16.4 of nieuwer vereist en moet de app vanaf het beginscherm worden geopend. Controleer ook dat meldingen voor Samen Thuis in iPhone-instellingen aanstaan.</p>':''}</section>
     <section class="card"><div class="card-header"><div><h2>Centrale prullenbak, geschiedenis en conflicten</h2><p class="muted" id="trash-count">${deletedItems.length} verwijderd item${deletedItems.length === 1 ? '' : 's'}</p></div><div class="page-actions"><a class="button secondary" href="#history">Versiegeschiedenis</a><a class="button secondary" href="#conflicts">Conflicten oplossen</a><button class="button secondary" id="open-trash">Prullenbak openen</button></div></div><p class="small muted">Verwijderde gegevens blijven bewaard en kunnen worden hersteld. Automatisch definitief verwijderen staat standaard uit.</p></section>
     <section class="card"><h2>Back-up en herstel</h2><p class="muted">Exporteer regelmatig één volledig JSON-bestand. Bij import wordt eerst automatisch een lokale veiligheidskopie gemaakt.</p><p id="backup-status" class="badge ${getBackupStatus().stale?'high':'low'}">${e(backupStatusText())}</p><div class="page-actions"><button class="button" id="export-data">Back-up downloaden</button><label class="button secondary" for="import-file">Back-up kiezen</label><input class="sr-only" id="import-file" type="file" accept="application/json,.json"></div></section>
     <section class="card"><h2>Installatie en lokale gegevens</h2><p class="muted">${appInstalled?'Samen Thuis is op dit apparaat als PWA geïnstalleerd.':'Installeer Samen Thuis als app op Android of iPhone. Je krijgt een pictogram op het startscherm en de app blijft offline bruikbaar.'}</p><p class="small muted">Alle gegevens blijven als offline kopie in IndexedDB op dit apparaat staan. Wissen van browsergegevens kan die lokale kopie verwijderen.</p><div class="page-actions"><button class="button secondary" id="install-app" ${appInstalled?'disabled':''}>${appInstalled?'App is geïnstalleerd':'App installeren'}</button><button class="button danger" id="clear-data">Alle lokale gegevens verwijderen</button></div></section>
@@ -127,6 +148,7 @@ export const settingsView={
   async mount(root){
     root.querySelector('#general-settings').addEventListener('submit',event=>{event.preventDefault();saveGeneral(event.currentTarget).catch(handleError)});root.querySelector('#daily-settings').addEventListener('submit',event=>{event.preventDefault();saveDailySettings(event.currentTarget).catch(handleError)});root.querySelector('#member-settings').addEventListener('submit',event=>{event.preventDefault();saveMembers(event.currentTarget).catch(handleError)});root.querySelector('#category-settings').addEventListener('submit',event=>{event.preventDefault();saveCategories(event.currentTarget).catch(handleError)});
     root.querySelector('#notification-permission').addEventListener('click',(event)=>toggleNotifications(event.currentTarget));
+    root.querySelector('#test-push-notification')?.addEventListener('click',(event)=>sendTestNotification(event.currentTarget));
     root.querySelector('#open-trash').addEventListener('click',()=>openTrash().catch(handleError));
     root.querySelector('#open-cloud').addEventListener('click',openCloudDialog);
     root.querySelector('#export-data').addEventListener('click',async()=>{await downloadBackup();const status=root.querySelector('#backup-status');status.textContent=backupStatusText();status.className='badge low';showToast('Back-up gemaakt.')});root.querySelector('#import-file').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{const backup=await parseBackupFile(file);openImportDialog(backup)}catch(error){handleError(error)}finally{event.target.value=''}});

@@ -2,7 +2,7 @@
 
 Samen Thuis is een complete Nederlandstalige gezinsplanner voor Roy, Demy, Miley en Navy. De app combineert één gezamenlijke agenda met boodschappen, huishoudelijke taken, een maaltijdplanner, voorraad, uitgaven, huisdieren, uitjes en een uitgebreide gezinsassistent.
 
-Versie 3.0 is offline-first en gebruikt het warme **Gezin & Co**-ontwerp: een rustige crème basis, koraalrode accenten, compacte gezinskaarten, lokale lijniconen, een vaste mobiele onderbalk en een helder zijmenu op grotere schermen. Alle schermen gebruiken IndexedDB en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
+Versie 3.0.1 is offline-first en gebruikt het warme **Gezin & Co**-ontwerp: een rustige crème basis, koraalrode accenten, compacte gezinskaarten, lokale lijniconen, een vaste mobiele onderbalk en een helder zijmenu op grotere schermen. Alle schermen gebruiken IndexedDB en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
 
 ## Mogelijkheden
 
@@ -130,6 +130,22 @@ Bij netwerk- of Supabase-uitval blijft iedere handeling lokaal werken. Wachtende
 
 Een browser of besturingssysteem geeft websites nooit de garantie dat een volledig gesloten PWA op een exact tijdstip mag draaien. Vooral iOS kan achtergrondwerk sterk beperken. De app bewaart daarom iedere wijziging eerst atomisch in IndexedDB en de outbox; er gaat niets verloren en de eerstvolgende toegestane synchronisatie haalt alles in.
 
+### Meldingen wanneer de PWA gesloten is
+
+Samen Thuis gebruikt hiervoor echte Web Push. De Supabase Edge Function wordt iedere minuut servermatig uitgevoerd; de telefoon hoeft de app dus niet zelf op de achtergrond wakker te houden. Na inschakelen worden normale apparaatmeldingen verstuurd voor:
+
+- afspraken en verjaardagen;
+- taken;
+- medicatie en dierenartsafspraken;
+- lage voorraad en producten die bijna of vandaag over datum gaan;
+- uitjes, afval, routines, onderhoud, garantie en leenitems;
+- incasso's, proefperiodes en contracteinden;
+- oppasmomenten, meeneemlijsten, bezoekplannen, thuisprojecten, spaardoelen en beloningsdoelen.
+
+Open **Instellingen → Meldingen op Android, iPhone en PWA**, kies **Achtergrondmeldingen inschakelen** en gebruik daarna **Testmelding sturen**. Als al eerder lokale toestemming was gegeven, maakt versie 3.0.1 na het koppelen van een gezinsaccount automatisch alsnog het ontbrekende pushabonnement aan.
+
+Op iPhone is iOS/iPadOS 16.4 of nieuwer nodig en moet Samen Thuis via Safari op het beginscherm zijn gezet en vanaf dat pictogram worden geopend. Op Android werkt Web Push in ondersteunde browsers en in de geïnstalleerde PWA. Als meldingen eerder zijn geweigerd, moeten ze eerst in de instellingen van de telefoon of browser worden toegestaan.
+
 ## Back-up maken
 
 1. Open **Meer → Instellingen**.
@@ -175,9 +191,11 @@ Bestond het project al vóór appversie 2.0.6, voer dan één keer [supabase/rea
 
 Werk een bestaand project daarna bij met [202607150001_assistant_modules.sql](./supabase/migrations/202607150001_assistant_modules.sql). Deze niet-destructieve, grotendeels idempotente migratie voegt de nieuwe entiteitstypen, cursorindex, cadeaucontrole, private Storage-bucket, Storage-policies en bijgewerkte sync-RPC toe. Maak vooraf altijd een Supabase-back-up en voer de migratie eerst in een afgescheiden testproject uit. De frontend is al voorbereid, maar foto-uploads en correcte centrale synchronisatie van de nieuwe onderdelen zijn pas online actief nadat deze migratie is uitgevoerd.
 
+Voer daarna [202607150002_background_notifications.sql](./supabase/migrations/202607150002_background_notifications.sql) uit. Deze idempotente migratie maakt of controleert de afgeschermde pushconfiguratie, apparaatinschrijvingen, bezorglog en de minuutcron. De tabellen zijn niet leesbaar voor browsergebruikers; uitsluitend de Edge Function met de serverrol kan ze gebruiken.
+
 Stel daarna bij **Authentication → URL Configuration** de Site URL in op `https://thuissamen.netlify.app` en voeg die URL ook toe aan Redirect URLs. Voor lokaal testen kan `http://localhost:8080/**` als extra redirect worden toegevoegd. De website bevat alleen de openbare Supabase publishable key; plaats nooit een secret key of service-role key in HTML of JavaScript.
 
-Voor meldingen terwijl de PWA gesloten is staat de Edge Function in `supabase/functions/send-reminders`. Implementeer die functie met JWT-controle uitgeschakeld zoals vastgelegd in `supabase/config.toml`; de functie controleert zelf gebruikerssessies en beveiligt de cronactie met een servercode. `schema.sql` activeert Supabase Cron en roept de functie iedere minuut aan. VAPID-sleutels worden bij het eerste gebruik binnen de Edge Function gegenereerd: de privésleutel blijft in een RLS-afgeschermde tabel en komt nooit in de browsercode terecht.
+Voor meldingen terwijl de PWA gesloten is staat de Edge Function in `supabase/functions/send-reminders`. Implementeer die functie met JWT-controle uitgeschakeld zoals vastgelegd in `supabase/config.toml`; de functie controleert zelf gebruikerssessies en beveiligt de cronactie met een servercode. De migratie activeert Supabase Cron en roept de functie iedere minuut aan. VAPID-sleutels worden bij het eerste gebruik binnen de Edge Function gegenereerd: de privésleutel blijft in een RLS-afgeschermde tabel en komt nooit in de browsercode terecht.
 
 ## Tests uitvoeren
 

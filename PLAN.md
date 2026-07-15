@@ -170,6 +170,6 @@ Na iedere implementatiefase worden de bestaande Node-tests opnieuw uitgevoerd. E
 
 ## 12. Uitvoeringsstatus
 
-De lokale implementatiefasen 1 tot en met 17 zijn afgerond in versie 3.0.0. De IndexedDB-upgrade, repositories, assistentmodules, specifieke workflows, back-up/import, zoekfunctie, prullenbak, versiegeschiedenis, syncuitbreiding, private bestandslaag, service-workerupdate en responsieve navigatie zijn geïntegreerd.
+De lokale implementatiefasen 1 tot en met 17 zijn afgerond. Versie 3.0.1 voegt een volledige Web Push-keten toe: automatische apparaatinschrijving na gezinskoppeling, een toestemmingspopup, een echte testmelding, servergestuurde herinneringen voor alle belangrijke onderdelen, een minuutcron, bezorgdeduplicatie en een normale Android/iPhone/PWA-notificatie vanuit de service worker.
 
-De automatische en handmatige controles staan met echte resultaten in `TEST_REPORT.md`. De nieuwe Supabase-migratie is geleverd en statisch gecontroleerd, maar is niet zonder beheerderstoestemming op productie uitgevoerd. Een live drie-gebruikers-RLS/Storage-test blijft daarom een expliciete uitrolcontrole en geen lokaal behaald testresultaat.
+De automatische en handmatige controles staan met echte resultaten in `TEST_REPORT.md`. Beide Supabase-migraties en de vernieuwde Edge Function zijn op 15 juli 2026 op het gekoppelde productieproject toegepast. De minuutcron is actief en meerdere serverruns gaven HTTP 200. Een echte apparaatmelding moet per Android/iPhone nog via de knop **Testmelding sturen** worden bevestigd, omdat de gecontroleerde desktopbrowser geen mobiele pushprompt heeft geaccepteerd.

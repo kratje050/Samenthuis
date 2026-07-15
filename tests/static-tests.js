@@ -35,6 +35,24 @@ export const staticTests = [
     includes(sql, 'hiddenforuserids'); includes(sql, 'can_read_family_record'); includes(sql, 'samen-thuis-private'); includes(sql, 'storage.objects'); includes(sql, 'auth.uid()');
     assert(!/disable\s+row\s+level\s+security/.test(sql));
   }],
+  ['achtergrondmeldingen dekken belangrijke gezinszaken en echte Web Push', () => {
+    const worker = read('service-worker.js');
+    const pushFunction = read('supabase/functions/send-reminders/index.ts');
+    const migration = read('supabase/migrations/202607150002_background_notifications.sql').toLocaleLowerCase();
+    for (const type of ['appointment', 'task', 'pet', 'inventory', 'outing', 'waste', 'routine', 'maintenance', 'subscription', 'babysitting', 'packing']) {
+      includes(pushFunction, `'${type}'`, `Pushmelding ontbreekt voor ${type}`);
+    }
+    includes(pushFunction, "body.action === 'test'");
+    includes(pushFunction, 'webpush.sendNotification');
+    includes(pushFunction, 'export default { fetch: handleRequest }');
+    includes(worker, "self.addEventListener('push'");
+    includes(worker, "self.addEventListener('pushsubscriptionchange'");
+    includes(worker, "action: 'open'");
+    includes(migration, 'enable row level security');
+    includes(migration, 'service_role');
+    includes(migration, 'cron.schedule');
+    assert(!/grant\s+.*push_(configuration|subscriptions|delivery_log).*\s+to\s+(anon|authenticated)/s.test(migration));
+  }],
   ['filteren blijft snel met grote testsets', () => {
     const records = Array.from({ length: 4000 }, (_, index) => ({ title: `Item ${index}`, category: index % 2 ? 'A' : 'B', memberIds: [index % 3 ? 'roy' : 'demy'] }));
     const start = performance.now(); const result = filterAssistantRecords(records, { query: 'Item', typeField: 'category', type: 'A', memberField: 'memberIds', memberId: 'roy' });

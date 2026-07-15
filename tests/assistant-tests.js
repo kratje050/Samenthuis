@@ -128,5 +128,18 @@ export const assistantTests = [
       subscription: fakeRepository([{ id:'s', name:'Internet', status:'active', debitDay:15 }])
     });
     const result = await collectFamilyReminders({ modules }, new Date(2026, 6, 15, 20, 0)); equal(result.length, 3); includes(result.map((item) => item.title).join(' '), 'GFT');
+  }],
+  ['gezinsherinneringen verzamelen taken medicatie en lage voorraad', async () => {
+    const result = await collectFamilyReminders({
+      modules: emptyModules(),
+      tasks: fakeRepository([{ id:'t', title:'Schooltas klaarzetten', status:'open', date:'2026-07-15', time:'19:00', priority:'hoog' }]),
+      pets: fakeRepository([{ id:'p', name:'Bobby', medication:'Tablet', dosage:'1 stuk', medicationTime:'19:30' }]),
+      inventory: fakeRepository([{ id:'i', productName:'Melk', quantity:0, minimumQuantity:1, unit:'pak' }]),
+      outings: fakeRepository([])
+    }, new Date(2026, 6, 15, 20, 0));
+    equal(result.length, 3);
+    includes(result.map((item) => item.title).join(' '), 'Schooltas');
+    includes(result.map((item) => item.title).join(' '), 'Bobby');
+    includes(result.map((item) => item.title).join(' '), 'Melk');
   }]
 ];
