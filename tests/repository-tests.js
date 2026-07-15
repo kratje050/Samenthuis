@@ -1,0 +1,46 @@
+import { initializeDatabase, closeDatabaseForTests } from '../js/database/indexed-db.js';
+import { AppointmentRepository } from '../js/repositories/appointment-repository.js';
+import { ShoppingRepository } from '../js/repositories/shopping-repository.js';
+import { TaskRepository } from '../js/repositories/task-repository.js';
+import { MealRepository } from '../js/repositories/meal-repository.js';
+import { InventoryRepository } from '../js/repositories/inventory-repository.js';
+import { ExpenseRepository } from '../js/repositories/expense-repository.js';
+import { OutboxRepository } from '../js/repositories/outbox-repository.js';
+import { AgendaService } from '../js/services/agenda-service.js';
+import { addMealIngredientsToShopping } from '../js/services/meal-service.js';
+import { getInventoryWarning } from '../js/services/inventory-service.js';
+import { summarizeExpenses } from '../js/services/expense-service.js';
+import { createBackupObject } from '../js/services/backup-service.js';
+import { importBackup } from '../js/services/import-service.js';
+import { nextTaskDate } from '../js/services/recurrence-service.js';
+import { MEMBER_IDS } from '../js/config.js';
+import { SearchService } from '../js/services/search-service.js';
+import { TrashService } from '../js/services/trash-service.js';
+import { getBackupStatus } from '../js/services/backup-service.js';
+import { assert, equal } from './test-utils.js';
+
+export async function runRepositoryTests(report) {
+  await initializeDatabase();
+  const appointments=new AppointmentRepository(),shopping=new ShoppingRepository(),tasks=new TaskRepository(),meals=new MealRepository(),inventory=new InventoryRepository(),expenses=new ExpenseRepository(),outbox=new OutboxRepository();
+  let appointment, shoppingItem;
+  await report('afspraak toevoegen',async()=>{appointment=await appointments.create({title:'Test zwemles',date:'2026-07-15',startTime:'15:00',endTime:'16:00',allDay:false,category:'Gezin',members:[MEMBER_IDS.roy],notes:'badpak',recurrence:'none'});assert(appointment.id);equal((await appointments.getById(appointment.id)).title,'Test zwemles')});
+  await report('afspraak wijzigen',async()=>{const changed=await appointments.update(appointment.id,{location:'Zwembad'});equal(changed.location,'Zwembad');equal(changed.version,2)});
+  await report('afspraak verwijderen met soft delete',async()=>{await appointments.softDelete(appointment.id);equal(await appointments.getById(appointment.id),null);assert((await appointments.getById(appointment.id,{includeDeleted:true})).deletedAt)});
+  await report('afspraak herstellen',async()=>{await appointments.restore(appointment.id);assert(await appointments.getById(appointment.id))});
+  await report('outbox bevat wijzigingen',async()=>assert((await outbox.getPendingChanges()).length>=4));
+  await report('terugkerende afspraak en gezinsfilter',async()=>{await appointments.create({title:'Werkdagritme',date:'2026-07-13',startTime:'09:00',allDay:false,category:'Werk',members:[MEMBER_IDS.demy],notes:'planning',recurrence:'daily',recurrenceUntil:'2026-07-17'});const service=new AgendaService(appointments);equal((await service.occurrencesBetween(new Date(2026,6,13),new Date(2026,6,17),{member:MEMBER_IDS.demy})).length,5);equal((await service.occurrencesBetween(new Date(2026,6,13),new Date(2026,6,17),{query:'planning'})).length,5)});
+  await report('boodschap toevoegen en afvinken',async()=>{shoppingItem=await shopping.create({productName:'Melk',quantity:2,unit:'pak',category:'Zuivel',checked:false});await shopping.update(shoppingItem.id,{checked:true,checkedAt:new Date().toISOString()});assert((await shopping.getById(shoppingItem.id)).checked)});
+  await report('taak toevoegen en volgende herhaling',async()=>{const task=await tasks.create({title:'Stofzuigen',date:'2026-07-15',recurrence:'weekly',status:'open'});equal(nextTaskDate(task,new Date(2026,6,15)),'2026-07-22')});
+  await report('maaltijdingrediënten naar boodschappen',async()=>{const meal=await meals.create({kind:'plan',name:'Pasta',date:'2026-07-15',mealType:'dinner',ingredients:'Pasta\nTomaten'});equal(await addMealIngredientsToShopping(meal,shopping,MEMBER_IDS.roy),2);assert((await shopping.getAll()).some(item=>item.productName==='Tomaten'))});
+  await report('voorraadwaarschuwingen',async()=>{const item=await inventory.create({productName:'Rijst',quantity:1,minimumQuantity:2,expiryDate:null});assert(getInventoryWarning(item).messages.includes('Lage voorraad'))});
+  await report('uitgavenberekening',async()=>{await expenses.create({amount:12.5,date:'2026-07-15',category:'Boodschappen',paidBy:MEMBER_IDS.roy});await expenses.create({amount:7.5,date:'2026-07-16',category:'Boodschappen',paidBy:MEMBER_IDS.demy});const summary=summarizeExpenses(await expenses.getAll());equal(summary.total,20);equal(summary.byCategory.Boodschappen,20)});
+  await report('globaal zoeken doorzoekt meerdere repositories',async()=>{const service=new SearchService({appointments,shopping,tasks,meals,inventory,expenses,pets:{getAll:async()=>[]},outings:{getAll:async()=>[]}});const results=await service.search('planning');assert(results.some(item=>item.entity==='appointments'))});
+  await report('centrale prullenbak herstelt een boodschap',async()=>{await shopping.softDelete(shoppingItem.id);const service=new TrashService({appointments,shopping,tasks,meals,inventory,expenses,pets:{getAll:async()=>[]},outings:{getAll:async()=>[]}});assert((await service.getDeletedItems()).some(item=>item.id===shoppingItem.id));await service.restore('shopping',shoppingItem.id);assert(await shopping.getById(shoppingItem.id))});
+  await report('back-upstatus herkent een recente back-up',async()=>{localStorage.setItem('samen-thuis-last-backup',new Date().toISOString());const status=getBackupStatus();equal(status.daysAgo,0);assert(!status.stale);localStorage.removeItem('samen-thuis-last-backup')});
+  let backup;
+  await report('volledige back-up exporteren',async()=>{backup=await createBackupObject();assert(backup.afspraken.length>=2);assert(Array.isArray(backup.outbox));assert(backup.gezinsleden.length===4)});
+  await report('back-up samenvoegen behoudt nieuwste versie',async()=>{const before=await appointments.getById(appointment.id);await appointments.update(appointment.id,{title:'Nieuwste lokale titel'});await importBackup(backup,'merge');equal((await appointments.getById(appointment.id)).title,'Nieuwste lokale titel');assert(before.version<=(await appointments.getById(appointment.id)).version)});
+  await report('back-up vervangen',async()=>{await importBackup(backup,'replace');assert((await appointments.getAll()).some(item=>item.title==='Test zwemles'))});
+  await report('gegevens blijven na database heropenen',async()=>{const id=(await appointments.getAll())[0].id;await closeDatabaseForTests();const fresh=new AppointmentRepository();assert(await fresh.getById(id))});
+  await report('honderden records blijven bruikbaar',async()=>{const start=performance.now();for(let i=0;i<220;i++){await appointments.create({title:`Prestatie afspraak ${i}`,date:`2026-08-${String(i%28+1).padStart(2,'0')}`,startTime:'10:00',allDay:false,category:'Gezin',members:[MEMBER_IDS.roy],recurrence:'none'});await shopping.create({productName:`Prestatie product ${i}`,quantity:1,unit:'stuk',category:'Overig',checked:false})}const service=new AgendaService(appointments);equal((await service.occurrencesBetween(new Date(2026,7,1),new Date(2026,7,31),{query:'Prestatie'})).length,220);assert(performance.now()-start<15000,'Prestatieproef duurde te lang')});
+}

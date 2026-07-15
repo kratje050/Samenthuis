@@ -1,0 +1,36 @@
+import { repositories, services, appState } from '../state.js';
+import { addDays, formatDate, fromDateKey, monthKey, toDateKey } from '../utils/dates.js';
+import { formatCurrency } from '../utils/formatting.js';
+import { e, emptyState } from './view-helpers.js';
+import { getBackupStatus } from '../services/backup-service.js';
+
+function greeting() { const hour=new Date().getHours(); return hour<12?'Goedemorgen':hour<18?'Goedemiddag':'Goedenavond'; }
+function inventoryWarning(item){const low=Number(item.quantity)<=Number(item.minimumQuantity);const expiry=item.expiryDate?Math.ceil((fromDateKey(item.expiryDate)-fromDateKey(toDateKey()))/86400000):999;return low||expiry<=3}
+
+export const dashboardView={
+  async render(){
+    const now=new Date(), today=toDateKey(now);
+    const [todayAppointments,upcoming,tasks,shopping,meals,inventory,expenses,pets,outbox]=await Promise.all([
+      services.agenda.occurrencesBetween(fromDateKey(today),fromDateKey(today,'23:59')),
+      services.agenda.occurrencesBetween(now,addDays(now,30)),repositories.tasks.getAll(),repositories.shopping.getAll(),repositories.meals.getAll(),repositories.inventory.getAll(),repositories.expenses.getAll(),repositories.pets.getAll(),repositories.outbox.getPendingChanges()
+    ]);
+    const openTasks=tasks.filter(item=>item.status!=='done');const openShopping=shopping.filter(item=>!item.checked);const todayMeals=meals.filter(item=>item.kind==='plan'&&item.date===today);const lowInventory=inventory.filter(inventoryWarning);const monthExpenses=expenses.filter(item=>item.date?.startsWith(monthKey())).reduce((sum,item)=>sum+Number(item.amount),0);
+    const birthdays=upcoming.filter(item=>item.category==='Verjaardag').slice(0,4);const next=upcoming.find(item=>item.occurrenceDate>today||(item.occurrenceDate===today&&!item.completed));
+    const petAlerts=pets.flatMap(pet=>{const alerts=[];if(pet.medication&&pet.medicationTime)alerts.push(`${pet.name}: ${pet.medication} om ${pet.medicationTime}`);if(pet.vetAppointment){const when=new Date(pet.vetAppointment);if(when>=now&&when<=addDays(now,30))alerts.push(`${pet.name}: dierenarts ${when.toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'})}`)}return alerts});
+    let storage='Beschikbaar';try{const estimate=await navigator.storage?.estimate?.();if(estimate?.usage!==undefined)storage=`${(estimate.usage/1024/1024).toFixed(1)} MB lokaal gebruikt`}catch{}
+    const backupStatus=getBackupStatus(now);const backupLabel=backupStatus.date?(backupStatus.daysAgo===0?'Vandaag een back-up gemaakt':`Laatste back-up ${backupStatus.daysAgo} dag${backupStatus.daysAgo===1?'':'en'} geleden`):'Nog geen downloadbare back-up';
+    return `<section class="page-stack"><div class="card" style="background:linear-gradient(135deg,var(--brown),var(--brown-2));color:var(--paper)"><p>${formatDate(now,{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p><h2 style="font-size:clamp(1.5rem,6vw,2.4rem)">${greeting()}, ${e(appState.settings.greetingName||appState.settings.members[0]?.name||'familie')}.</h2><p style="margin:0;opacity:.82">Alles voor jullie gezin, rustig op één plek.</p></div>
+    <div class="dashboard-grid">
+      <article class="card wide"><div class="card-header"><h2>Afspraken vandaag</h2><a href="#agenda">Agenda openen</a></div>${todayAppointments.length?`<div class="item-list">${todayAppointments.slice(0,5).map(item=>`<div class="list-item"><strong class="agenda-time">${item.allDay?'Hele dag':e(item.startTime)}</strong><div><strong>${e(item.title)}</strong><div class="small muted">${e(item.location||item.category)}</div></div></div>`).join('')}</div>`:emptyState('Geen afspraken vandaag','Er is ruimte in de agenda.')}</article>
+      <article class="card"><span class="metric-label">Volgende afspraak</span>${next?`<strong class="metric" style="font-size:1.2rem">${e(next.title)}</strong><p class="small muted">${formatDate(next.occurrenceDate)} ${next.allDay?'':e(next.startTime)}</p>`:`<strong class="metric">—</strong><p class="small muted">Geen komende afspraak</p>`}<a href="#agenda">Bekijken</a></article>
+      <article class="card"><span class="metric-label">Openstaande taken</span><strong class="metric">${openTasks.length}</strong><a href="#tasks">Taken openen</a></article>
+      <article class="card"><span class="metric-label">Boodschappen</span><strong class="metric">${openShopping.length}</strong><a href="#shopping">Lijst openen</a></article>
+      <article class="card"><span class="metric-label">Uitgaven deze maand</span><strong class="metric" style="font-size:1.45rem">${formatCurrency(monthExpenses,appState.settings.currency)}</strong><a href="#expenses">Overzicht</a></article>
+      <article class="card wide"><div class="card-header"><h2>Maaltijden vandaag</h2><a href="#meals">Weekplanner</a></div>${todayMeals.length?todayMeals.map(item=>`<div class="list-item"><span class="badge">${e(({breakfast:'Ontbijt',lunch:'Lunch',dinner:'Avondeten',snack:'Tussendoortje'})[item.mealType])}</span><strong>${e(item.name)}</strong></div>`).join(''):emptyState('Nog niets gepland','Plan ontbijt, lunch of avondeten.')}</article>
+      <article class="card"><div class="card-header"><h2>Lage voorraad</h2><a href="#inventory">Voorraad</a></div><strong class="metric">${lowInventory.length}</strong>${lowInventory.slice(0,3).map(item=>`<div class="small muted">${e(item.productName)}</div>`).join('')}</article>
+      <article class="card"><div class="card-header"><h2>Verjaardagen</h2></div>${birthdays.length?birthdays.map(item=>`<div class="list-item compact"><strong>${e(item.title)}</strong><span class="small">${formatDate(item.occurrenceDate,{day:'numeric',month:'short'})}</span></div>`).join(''):'<p class="muted small">Geen verjaardagen in de komende 30 dagen.</p>'}</article>
+      <article class="card wide"><div class="card-header"><h2>Huisdierherinneringen</h2><a href="#pets">Huisdieren</a></div>${petAlerts.length?petAlerts.map(alert=>`<div class="list-item">${e(alert)}</div>`).join(''):'<p class="muted">Geen aankomende dierenarts- of medicatiemeldingen.</p>'}</article>
+      <article class="card wide"><h2>Lokale opslag</h2><p><strong>${e(storage)}</strong></p><p class="small muted">${outbox.length} lokale wijziging${outbox.length===1?'':'en'} voorbereid voor latere synchronisatie.</p><span class="badge low">● Alleen op dit apparaat</span> <span class="badge ${backupStatus.stale?'high':'low'}">${e(backupLabel)}</span><p class="small muted" style="margin-top:.7rem">Maak regelmatig een back-up via Instellingen. Automatische synchronisatie volgt pas in fase 2.</p><a href="#settings">Back-up en instellingen</a></article>
+    </div></section>`;
+  }
+};
