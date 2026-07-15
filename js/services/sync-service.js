@@ -33,6 +33,7 @@ export class SyncService {
     this.onDataChange = onDataChange;
     this.running = null;
     this.timer = null;
+    this.pollTimer = null;
     this.started = false;
     this.state = { status: 'local', lastSyncAt: null, pending: 0, conflicts: 0, error: null };
     this.repositoryByEntity = {
@@ -51,6 +52,11 @@ export class SyncService {
     addEventListener('online', () => this.schedule('internet hersteld', 200));
     addEventListener('samen-thuis-local-change', () => this.schedule('lokale wijziging', 900));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.schedule('app op voorgrond', 200); });
+    addEventListener('focus', () => this.schedule('app actief', 200));
+    addEventListener('pageshow', () => this.schedule('pagina hervat', 200));
+    this.pollTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') this.schedule('periodieke controle', 100);
+    }, 60 * 1000);
     if (this.family.context) this.schedule('app geopend', 100);
     await this.#updatePending();
   }
@@ -65,12 +71,24 @@ export class SyncService {
     if (this.running) return this.running;
     if (!this.auth.isSignedIn || !this.family.context) throw new Error('Log in en koppel eerst een gezin.');
     if (!navigator.onLine) throw new Error('Je bent offline. Wijzigingen worden later automatisch gesynchroniseerd.');
-    this.running = this.#run(reason).catch((error) => {
+    const run = () => this.#run(reason);
+    const operation = navigator.locks?.request
+      ? navigator.locks.request('samen-thuis-cloud-sync', { mode: 'exclusive' }, run)
+      : run();
+    this.running = operation.catch((error) => {
       this.#setState({ status: 'error', error: error.message });
       if (throwOnError) throw error;
       return { ok: false, error };
     }).finally(() => { this.running = null; });
     return this.running;
+  }
+
+  async acceptBackgroundResult(message = {}) {
+    const saved = await this.cloudRepository.get('sync-state');
+    if (saved) this.#setState({ ...this.state, ...saved });
+    await this.#updatePending();
+    if (message.ok !== false) await this.onDataChange({ applied: Number(message.pulled || 0), background: true });
+    return this.state;
   }
 
   async initializeFamily(mode) {

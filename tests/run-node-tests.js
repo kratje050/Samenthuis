@@ -5,8 +5,9 @@ import { convenienceTests } from './convenience-tests.js';
 import { cloudTests } from './cloud-tests.js';
 import { icsTests } from './ics-tests.js';
 import { pushTests } from './push-tests.js';
+import { backgroundSyncTests } from './background-sync-tests.js';
 
 let passed=0,failed=0;
-for(const [name,test] of [...recurrenceTests,...calendarTests,...backupTests,...convenienceTests,...cloudTests,...icsTests,...pushTests]){try{await test();console.log(`✓ ${name}`);passed++}catch(error){console.error(`✗ ${name}\n  ${error.message}`);failed++}}
+for(const [name,test] of [...recurrenceTests,...calendarTests,...backupTests,...convenienceTests,...cloudTests,...icsTests,...pushTests,...backgroundSyncTests]){try{await test();console.log(`✓ ${name}`);passed++}catch(error){console.error(`✗ ${name}\n  ${error.message}`);failed++}}
 console.log(`\n${passed} geslaagd, ${failed} mislukt`);
 if(failed)process.exitCode=1;

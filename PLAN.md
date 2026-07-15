@@ -2,7 +2,7 @@
 
 ## Doel en grenzen
 
-Samen Thuis is een gratis, Nederlandstalige, mobile-first gezins-PWA. IndexedDB blijft op ieder apparaat de offline bron voor de UI. Versie 1.3 bevat optionele accounts, centrale Supabase-synchronisatie en Web Push; zonder account werkt de app nog steeds volledig lokaal. `localStorage` bevat alleen kleine interfacevoorkeuren en het apparaat-ID. Sessies staan in een aparte IndexedDB-store.
+Samen Thuis is een gratis, Nederlandstalige, mobile-first gezins-PWA. IndexedDB blijft op ieder apparaat de offline bron voor de UI. Versie 1.4 bevat optionele accounts, centrale Supabase-synchronisatie, PWA-achtergrondtaken en Web Push; zonder account werkt de app nog steeds volledig lokaal. `localStorage` bevat alleen kleine interfacevoorkeuren en het apparaat-ID. Sessies staan in een aparte IndexedDB-store.
 
 ## Architectuur
 
@@ -13,6 +13,7 @@ De app bestaat uit vijf duidelijke lagen:
 3. **Repositories** – één repository per domein met een uniforme API (`getAll`, `getById`, `create`, `update`, `softDelete`, `restore`). Mutaties schrijven record en outbox-item in één IndexedDB-transactie.
 4. **Opslag** – database-opening, schema en migraties. IndexedDB is de directe bron voor de UI; Supabase is na aanmelding de gedeelde gezinsbron.
 5. **Synchronisatie** – de outbox-adapter pusht lokale mutaties via beveiligde RPC's en past centrale records zonder nieuwe outboxmutatie lokaal toe.
+6. **PWA-achtergrondlaag** – de service worker kan dezelfde outbox zelfstandig verwerken, de korte Supabase-sessie met de refresh-token roteren en centrale records rechtstreeks in de bestaande IndexedDB-stores toepassen. Een Web Lock voorkomt dat venster en service worker tegelijk dezelfde wachtrij verwerken.
 
 ES-modules houden onderdelen los gekoppeld. `state.js` bevat alleen runtime-status en een eventbus. `router.js` beheert hashroutes. De service worker cachet uitsluitend lokale appbestanden en gebruikt een versiegebonden cache met updatecontrole.
 
@@ -90,7 +91,7 @@ Semantische HTML, gekoppelde labels, toetsenbordbediening, zichtbare focus, live
 
 ## Fase 2: centrale database en automatische synchronisatie
 
-Fase 2 is in versie 1.3 als **losse sync-adapter** naast de bestaande repositories geïmplementeerd; views en domeinopslag blijven intact. Supabase levert Auth, PostgreSQL, Cron en één Edge Function voor Web Push. Alleen de openbare publishable key staat in de client. De secret- en service-role keys worden nergens in de statische website gebruikt.
+Fase 2 is in versie 1.4 als **losse sync-adapter** naast de bestaande repositories geïmplementeerd; views en domeinopslag blijven intact. Supabase levert Auth, PostgreSQL, Cron en één Edge Function voor Web Push. Alleen de openbare publishable key staat in de client. De secret- en service-role keys worden nergens in de statische website gebruikt.
 
 Het servermodel bestaat uit `families`, `family_members` en `family_records`. Accounts voor Roy en Demy kunnen via een gehashte, zeven dagen geldige en eenmalig bruikbare uitnodigingscode lid worden van één gezamenlijk gezin. Beveiligde RPC-functies bepalen het `familyId` uitsluitend via `auth.uid()`. Wachtwoorden worden alleen door Supabase Auth verwerkt, sessies gebruiken korte toegangstokens plus refresh-rotatie en alle communicatie loopt via HTTPS.
 
@@ -99,7 +100,13 @@ De sync-engine verwerkt de bestaande outbox:
 1. bij openen van de app;
 2. wanneer de app terug naar de voorgrond komt;
 3. bij het `online`-event;
-4. kort na iedere lokale wijziging, met debounce en retries.
+4. kort na iedere lokale wijziging, met debounce en retries;
+5. iedere minuut zolang het appvenster zichtbaar is;
+6. via een eenmalige Background Sync-taak na wachtende wijzigingen;
+7. via Periodic Background Sync met een aangevraagd minimuminterval van vijftien minuten, waar ondersteund;
+8. bij een Web Push-wake-up van de service worker.
+
+Background Sync blijft afhankelijk van de planning en energieregels van de browser. Periodieke uitvoering is dus niet exact of gegarandeerd, zeker niet op iOS. De atomaire IndexedDB-outbox en de open/voorgrond/online-triggers zijn daarom altijd de bron van betrouwbaarheid en halen gemiste achtergrondmomenten later in.
 
 Per wijziging stuurt de client record-ID, versie, wijzigingstijd, tombstone, payload en apparaat-ID. De server kiest eerst de hoogste versie en bij een gelijke versie de nieuwste wijzigingstijd. Een gelijktijdige afwijkende versie wordt als conflict teruggegeven en deterministisch samengevoegd; de synchronisatiestatus meldt dit. Na serverbevestiging wordt ieder bijbehorend outbox-item `processed: true` en het lokale record `synced`.
 

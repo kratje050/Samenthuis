@@ -1,7 +1,7 @@
 {
   "name": "Samen Thuis – Gezinsplanner",
   "short_name": "Samen Thuis",
-  "description": "Een gratis offline-first gezinsplanner met veilige synchronisatie en afspraakherinneringen.",
+  "description": "Een gratis offline-first gezinsplanner met veilige PWA-achtergrondsynchronisatie en afspraakherinneringen.",
   "lang": "nl-NL",
   "id": "./",
   "start_url": "./#home",

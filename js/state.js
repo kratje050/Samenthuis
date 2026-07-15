@@ -17,6 +17,7 @@ import { AuthService } from './services/auth-service.js';
 import { FamilyService } from './services/family-service.js';
 import { SyncService } from './services/sync-service.js';
 import { PushNotificationService } from './services/push-notification-service.js';
+import { BackgroundSyncService } from './services/background-sync-service.js';
 import { setActiveActor } from './utils/actor.js';
 
 const listeners = new Map();
@@ -49,12 +50,14 @@ services.auth = new AuthService(supabaseClient, repositories.cloud, (auth) => {
   appState.cloud = { ...appState.cloud, ...auth };
   if (!auth.signedIn && services.family) services.family.clear();
   if (!auth.signedIn) setActiveActor();
+  if (services.backgroundSync) (auth.signedIn ? services.backgroundSync.refresh() : services.backgroundSync.disable()).catch(() => {});
   emit('cloud', appState.cloud);
 });
 
 services.family = new FamilyService(supabaseClient, services.auth, ({ context, members }) => {
   appState.cloud = { ...appState.cloud, family: context, familyMembers: members };
   setActiveActor(context ? { id: services.auth.user?.id, name: context.display_name } : {});
+  services.backgroundSync?.refresh().catch(() => {});
   emit('cloud', appState.cloud);
 });
 
@@ -74,6 +77,12 @@ services.sync = new SyncService({
   }
 });
 services.push = new PushNotificationService(supabaseClient, services.auth, services.family);
+services.backgroundSync = new BackgroundSyncService({
+  auth: services.auth,
+  family: services.family,
+  sync: services.sync,
+  outbox: repositories.outbox
+});
 
 export function on(event, callback) {
   if (!listeners.has(event)) listeners.set(event, new Set());

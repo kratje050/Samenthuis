@@ -72,6 +72,15 @@ export class AuthService {
     return session.accessToken;
   }
 
+  async reloadFromStorage() {
+    const stored = await this.cloudRepository.get(SESSION_KEY);
+    if (stored?.accessToken && (!this.session || Number(stored.expiresAt || 0) >= Number(this.session.expiresAt || 0))) {
+      this.session = stored;
+      this.#notify();
+    }
+    return this.session;
+  }
+
   get user() { return this.session?.user || null; }
   get isSignedIn() { return Boolean(this.session?.accessToken); }
 

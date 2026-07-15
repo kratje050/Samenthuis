@@ -2,7 +2,7 @@
 
 Samen Thuis is een complete Nederlandstalige gezinsplanner voor Roy, Demy, Miley en Navy. De app combineert één gezamenlijke agenda met boodschappen, huishoudelijke taken, een maaltijdplanner, voorraad, uitgaven, huisdieren en uitjes.
 
-Versie 1.3 is offline-first: alle schermen blijven IndexedDB gebruiken en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is. Zonder account blijft de app volledig lokaal bruikbaar.
+Versie 1.4 is offline-first: alle schermen blijven IndexedDB gebruiken en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
 
 ## Mogelijkheden
 
@@ -24,7 +24,7 @@ Versie 1.3 is offline-first: alle schermen blijven IndexedDB gebruiken en werken
 - een back-upstatus op het dashboard en in Instellingen, met een waarschuwing wanneer de laatste downloadbare back-up ouder wordt;
 - aanpasbare gezinsleden, kleuren, profieliconen, categorieën en thema's;
 - volledige JSON-back-up, gecontroleerde import, samenvoegen of vervangen;
-- installeerbare PWA met lokale app-iconen, offline cache en updatecontrole.
+- installeerbare PWA met lokale app-iconen, offline cache, updatecontrole en best-effort achtergrondsynchronisatie;
 - optionele e-mailaccounts, één gezamenlijk gezin, eenmalige uitnodigingscodes en automatische synchronisatie tussen telefoons;
 - beveiligde centrale opslag met Row Level Security: een ingelogde gebruiker kan uitsluitend gegevens van het eigen gezin lezen.
 
@@ -90,11 +90,20 @@ Maak daarom regelmatig een back-up.
 3. Maak voor Roy het eerste account en bevestig zo nodig de e-mail.
 4. Log in, kies **Nieuw gezin maken** en bewaar de getoonde uitnodigingscode.
 5. Maak op de tweede telefoon een account voor Demy en kies **Met code aansluiten**.
-6. Vanaf dat moment synchroniseert de app bij openen, terugkeren naar de voorgrond, internetherstel en kort na iedere wijziging.
+6. Vanaf dat moment synchroniseert de app bij openen, terugkeren naar de voorgrond, internetherstel, kort na iedere wijziging en tijdens een actieve minuutcontrole. De geïnstalleerde PWA registreert daarnaast achtergrondtaken waar de browser dit toestaat.
 
 Een uitnodigingscode is zeven dagen geldig en kan één keer worden gebruikt. Alleen de beheerder kan een nieuwe code maken; een nieuwe code maakt de vorige direct ongeldig. Wachtwoorden worden uitsluitend door Supabase Auth verwerkt en staan niet in de appdatabase. Toegangssessies staan lokaal in IndexedDB, niet in de back-up.
 
 Bij netwerk- of Supabase-uitval blijft iedere handeling lokaal werken. Wachtende mutaties blijven in de outbox en worden later opnieuw aangeboden. Bij een gelijktijdige wijziging op twee telefoons detecteert de server het conflict en kiest hij deterministisch de hoogste versie en daarna de nieuwste wijzigingstijd.
+
+### Achtergrondsynchronisatie van de PWA
+
+- Na een lokale wijziging registreert de PWA een eenmalige Background Sync-herhaalpoging. Zo kan een wijziging alsnog worden verstuurd nadat internet terugkomt, ook wanneer het appvenster niet meer vooraan staat.
+- Op browsers met Periodic Background Sync vraagt de PWA om ongeveer iedere vijftien minuten te mogen controleren. De browser bepaalt zelf het werkelijke moment op basis van installatie, gebruik, verbinding en batterijbesparing.
+- Een ontvangen Web Push-bericht laat de service worker tevens een inhaalsync uitvoeren.
+- Als deze browserfuncties ontbreken of worden tegengehouden, blijft de betrouwbare terugval actief: synchroniseren bij openen, voorgrond, focus, internetherstel en iedere wijziging. Zolang de app zichtbaar is controleert hij bovendien iedere minuut op wijzigingen van andere telefoons.
+
+Een browser of besturingssysteem geeft websites nooit de garantie dat een volledig gesloten PWA op een exact tijdstip mag draaien. Vooral iOS kan achtergrondwerk sterk beperken. De app bewaart daarom iedere wijziging eerst atomisch in IndexedDB en de outbox; er gaat niets verloren en de eerstvolgende toegestane synchronisatie haalt alles in.
 
 ## Back-up maken
 
@@ -157,7 +166,7 @@ Repository- en integratietests draaien in een echte browser-IndexedDB. Start de 
 http://localhost:8080/tests/test-runner.html
 ```
 
-De browsertest gebruikt een unieke tijdelijke testdatabase en verwijdert die na afloop. De suite controleert onder andere CRUD en herstel, outbox, filters en zoeken, herhaling, maaltijdingrediënten, voorraad, uitgaven, back-up samenvoegen/vervangen, heropenen van IndexedDB en honderden records.
+De browsertest gebruikt een unieke tijdelijke testdatabase en verwijdert die na afloop. De suite controleert onder andere CRUD en herstel, outbox, filters en zoeken, herhaling, maaltijdingrediënten, voorraad, uitgaven, back-up samenvoegen/vervangen, heropenen van IndexedDB, Background Sync-registratie en honderden records.
 
 De globale zoekfunctie kan ook met `Ctrl+K` (Windows/Linux) of `⌘K` (macOS) worden geopend. Verwijderde gegevens uit ieder onderdeel staan bij **Meer → Instellingen → Centrale prullenbak**.
 
@@ -170,7 +179,7 @@ De globale zoekfunctie kan ook met `Ctrl+K` (Windows/Linux) of `⌘K` (macOS) wo
 - een losse Supabase-adapter die de outbox verwerkt en centrale records zonder tweede lokale mutatie toepast;
 - UUID's, versies, apparaat-ID's, wijzigingstijden en synchronisatiestatus op ieder domeinrecord;
 - hashrouter voor betrouwbare statische hosting en offline navigatie;
-- service worker en webmanifest zonder externe runtime-assets;
+- service worker en webmanifest zonder externe runtime-assets, met een zelfstandige IndexedDB/outbox-sync voor achtergrondtaken;
 - mobile-first ondernavigatie en een zijmenu vanaf tabletformaat.
 
 De volledige architectuur en ontwerpkeuzes staan in [PLAN.md](./PLAN.md).
@@ -185,6 +194,7 @@ De centrale synchronisatielaag is toegevoegd zonder de schermen of lokale opslag
 - Er is geen bankkoppeling en geen achtergrondtracking.
 - Browsernotificaties werken alleen na toestemming.
 - Met een gekoppeld gezinsaccount en notificatietoestemming kan Web Push de geïnstalleerde PWA ook buiten actief gebruik wekken. Platforminstellingen zoals batterijbesparing of uitgeschakelde notificaties kunnen bezorging nog steeds beperken; daarom blijven in-app herinneringen actief.
+- Background Sync en Periodic Background Sync zijn best-effort browserfuncties. Als het platform ze niet aanbiedt, synchroniseert de app automatisch zodra hij weer wordt geopend, zichtbaar wordt of internet terugkomt.
 - E-mailbevestiging en synchronisatie vereisen tijdelijk internet; alle gewone appfuncties blijven offline beschikbaar.
 
 ## Licentie en kosten

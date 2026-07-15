@@ -94,10 +94,11 @@ async function start() {
     await initializeCloudState();
     applyTheme(appState.settings.theme);
     initializeConnectivity(); initializeThemeToggle(); initializeGlobalActions(); initializeCloudUi();
+    const serviceWorkerRegistration = await registerServiceWorker();
+    await services.backgroundSync.start(serviceWorkerRegistration);
     await initializeRouter();
     window.addEventListener('samen-thuis-data-synced', () => renderRoute().catch(console.error));
     const reminders = new ReminderService(services.agenda, showInAppReminder); reminders.start();
-    await registerServiceWorker();
     if (appState.settings.notifications) services.push.refreshExisting().catch(console.warn);
     document.querySelector('#app').setAttribute('aria-busy', 'false');
   } catch (error) {

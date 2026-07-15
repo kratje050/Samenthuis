@@ -109,7 +109,7 @@ function openStatusDialog() {
     title: 'Gezinssynchronisatie', onSubmit: null,
     content: `<div class="sync-summary ${e(sync.status)}"><strong>${e(family.family_name)}</strong><span>${e(statusText())}</span><span>${sync.pending} wachtende wijziging${sync.pending === 1 ? '' : 'en'}</span></div>
       <h3>Gezinsleden met een account</h3><ul class="item-list">${members.map((member) => `<li class="list-item compact"><strong>${e(member.display_name)}</strong><span class="badge">${member.role === 'owner' ? 'Beheerder' : 'Gezinslid'}</span></li>`).join('')}</ul>
-      <p class="small muted">De app blijft offline bruikbaar. Zodra internet terugkomt worden wachtende wijzigingen automatisch verwerkt.</p>`
+      <p class="small muted">De app blijft offline bruikbaar. Wachtende wijzigingen worden bij internetherstel verwerkt. Als de browser dit toestaat, synchroniseert de geïnstalleerde PWA ook zelfstandig op de achtergrond; anders haalt hij alles in bij openen of voorgrond.</p>`
   });
   const footer = modal.querySelector('.modal-footer');
   footer.innerHTML = `<button class="button ghost" type="button" id="cloud-sign-out">Uitloggen</button>${family.role === 'owner' ? '<button class="button secondary" type="button" id="new-invite">Nieuwe uitnodigingscode</button>' : ''}<button class="button" type="button" id="sync-now">Nu synchroniseren</button>`;
@@ -126,6 +126,7 @@ function openStatusDialog() {
   modal.querySelector('#cloud-sign-out').addEventListener('click', async (event) => {
     const button = event.currentTarget; setBusy(button, true);
     await services.push.disable().catch(() => {});
+    await services.backgroundSync.disable().catch(() => {});
     await services.auth.signOut(); services.family.clear(); closeModal(); showToast('Je bent uitgelogd. Lokale gegevens blijven bewaard.');
   });
 }
