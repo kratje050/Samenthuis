@@ -14,7 +14,11 @@ const indexes = {
   backups: [['createdAt', 'createdAt']],
   cloud: [['updatedAt', 'updatedAt']],
   activity: [['occurredAt', 'occurredAt'], ['entityType', 'entityType'], ['actorId', 'actorId'], ['deletedAt', 'deletedAt']],
-  templates: [['templateType', 'templateType'], ['updatedAt', 'updatedAt'], ['deletedAt', 'deletedAt']]
+  templates: [['templateType', 'templateType'], ['updatedAt', 'updatedAt'], ['deletedAt', 'deletedAt']],
+  assistantRecords: [['module', 'module'], ['status', 'status'], ['date', 'date'], ['updatedAt', 'updatedAt'], ['syncStatus', 'syncStatus'], ['deletedAt', 'deletedAt']],
+  recordHistory: [['sourceEntity', 'sourceEntity'], ['recordId', 'recordId'], ['changedAt', 'changedAt'], ['deletedAt', 'deletedAt']],
+  files: [['recordId', 'recordId'], ['entityType', 'entityType'], ['uploadStatus', 'uploadStatus'], ['updatedAt', 'updatedAt'], ['deletedAt', 'deletedAt']],
+  fileBlobs: []
 };
 
 export function createSchema(database, transaction) {

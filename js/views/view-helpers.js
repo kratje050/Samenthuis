@@ -36,7 +36,9 @@ export function categoryColor(category = '') {
 export function bindAction(root, selector, handler) {
   root.addEventListener('click', (event) => {
     const target = event.target.closest(selector);
-    if (target && root.contains(target)) handler(target, event);
+    if (target && root.contains(target)) {
+      Promise.resolve(handler(target, event)).catch(handleError);
+    }
   });
 }
 

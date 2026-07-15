@@ -7,13 +7,8 @@
   const SYNC_LOCK = 'samen-thuis-cloud-sync';
   const OUTBOX_SYNC_TAG = 'samen-thuis-outbox-sync';
   const PERIODIC_SYNC_TAG = 'samen-thuis-periodic-sync';
-  const ENTITY_TO_STORE = Object.freeze({
-    appointment: 'appointments', appointments: 'appointments', shopping: 'shopping',
-    task: 'tasks', tasks: 'tasks', meal: 'meals', meals: 'meals', inventory: 'inventory',
-    expense: 'expenses', expenses: 'expenses', pet: 'pets', pets: 'pets',
-    outing: 'outings', outings: 'outings', settings: 'settings', activity: 'activity',
-    activities: 'activity', template: 'templates', templates: 'templates'
-  });
+  const ENTITY_DEFINITIONS = scope.SAMEN_THUIS_ENTITY_CATALOG.definitions;
+  const ENTITY_ALIASES = scope.SAMEN_THUIS_ENTITY_CATALOG.aliases;
 
   function requestResult(request) {
     return new Promise((resolve, reject) => {
@@ -112,9 +107,9 @@
   function newestChanges(items) {
     const newest = new Map();
     for (const item of items.filter((entry) => !entry.processed)) {
-      const storeName = ENTITY_TO_STORE[item.entityType];
+      const canonical = ENTITY_ALIASES[item.entityType];
+      const storeName = ENTITY_DEFINITIONS[canonical];
       if (!storeName) continue;
-      const canonical = Object.entries(ENTITY_TO_STORE).find(([entity, store]) => store === storeName && !entity.endsWith('s'))?.[0] || item.entityType;
       const key = `${storeName}:${item.recordId}`;
       const current = newest.get(key);
       if (!current || Number(item.version || 0) > Number(current.version || 0) ||
@@ -131,10 +126,22 @@
   }
 
   async function commitPushedChange(change, remote, conflict) {
-    await withTransaction([change.storeName, 'outbox'], 'readwrite', async (transaction) => {
+    await withTransaction([change.storeName, 'outbox', ...(conflict ? ['recordHistory'] : [])], 'readwrite', async (transaction) => {
       const recordStore = transaction.objectStore(change.storeName);
       const current = await requestResult(recordStore.get(change.recordId));
-      recordStore.put({ ...(current || {}), ...remote, id: change.recordId, syncStatus: conflict ? 'conflict' : 'synced' });
+      const local = structuredClone(change.payload || current || {});
+      recordStore.put({ ...(current || {}), ...remote, id: change.recordId, syncStatus: conflict ? 'conflict' : 'synced', conflictData: conflict ? { local, remote: structuredClone(remote), detectedAt: new Date().toISOString() } : null });
+      if (conflict) {
+        const history = transaction.objectStore('recordHistory');
+        const now = new Date().toISOString();
+        [{ variant: 'local', snapshot: local }, { variant: 'remote', snapshot: remote }].forEach(({ variant, snapshot }) => history.put({
+          id: crypto.randomUUID(), sourceEntity: change.canonical, recordId: change.recordId,
+          sourceVersion: Number(snapshot.version || 0), snapshot, variant, changedAt: now,
+          changedBy: snapshot.updatedBy || 'sync', changedByName: 'Achtergrondsynchronisatie',
+          createdAt: now, updatedAt: now, deletedAt: null, version: 1,
+          deviceId: change.deviceId || 'background', syncStatus: 'local', createdBy: 'sync', updatedBy: 'sync'
+        }));
+      }
       const outbox = transaction.objectStore('outbox');
       const items = await requestResult(outbox.getAll());
       const processedAt = new Date().toISOString();
@@ -176,7 +183,8 @@
   }
 
   async function applyRemoteRow(row) {
-    const storeName = ENTITY_TO_STORE[row.entity_type];
+    const canonical = ENTITY_ALIASES[row.entity_type];
+    const storeName = ENTITY_DEFINITIONS[canonical];
     if (!storeName || !row.payload) return false;
     return withTransaction([storeName], 'readwrite', async (transaction) => {
       const store = transaction.objectStore(storeName);
@@ -190,6 +198,7 @@
         deviceId: row.device_id || row.payload.deviceId,
         syncStatus: 'synced'
       };
+      if (storeName === 'assistantRecords') remote.module = canonical;
       const remoteVersion = Number(remote.version || 0);
       const currentVersion = Number(current?.version || 0);
       const newer = !current || remoteVersion > currentVersion ||
@@ -200,9 +209,23 @@
   }
 
   async function pullChanges(token) {
-    const rows = await apiRequest('/rest/v1/family_records?select=entity_type,record_id,payload,version,updated_at,deleted_at,device_id&order=updated_at.asc', { token });
+    let cursor = await getCloudValue('background-sync-cursor');
     let applied = 0;
-    for (const row of rows || []) if (await applyRemoteRow(row)) applied += 1;
+    const pageSize = 500;
+    for (let page = 0; page < 100; page += 1) {
+      const suffix = !cursor?.serverUpdatedAt ? '' : cursor.recordId
+        ? `&or=${encodeURIComponent(`(server_updated_at.gt.${cursor.serverUpdatedAt},and(server_updated_at.eq.${cursor.serverUpdatedAt},record_id.gt.${cursor.recordId}))`)}`
+        : `&server_updated_at=gt.${encodeURIComponent(cursor.serverUpdatedAt)}`;
+      const rows = await apiRequest(`/rest/v1/family_records?select=entity_type,record_id,payload,version,updated_at,deleted_at,device_id,server_updated_at&order=server_updated_at.asc,record_id.asc&limit=${pageSize}${suffix}`, { token });
+      for (const row of rows || []) if (await applyRemoteRow(row)) applied += 1;
+      const last = rows?.at?.(-1);
+      if (!last?.server_updated_at) break;
+      const nextCursor = { serverUpdatedAt: last.server_updated_at, recordId: last.record_id };
+      if (cursor?.serverUpdatedAt === nextCursor.serverUpdatedAt && cursor?.recordId === nextCursor.recordId) break;
+      cursor = nextCursor;
+      await setCloudValue('background-sync-cursor', cursor);
+      if (rows.length < pageSize) break;
+    }
     return applied;
   }
 

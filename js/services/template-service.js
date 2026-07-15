@@ -14,11 +14,18 @@ export async function applyTemplate(template, repositories) {
       await repositories.shopping.create({ productName: item.name, quantity: 1, unit: 'stuks', category: 'Overig', store: '', note: `Uit sjabloon ${template.title}`, addedBy: 'device', checked: false, checkedAt: null, checkedBy: null });
       created += 1;
     }
+  } else if (template.templateType === 'packing' && repositories.modules?.packing) {
+    await repositories.modules.packing.create({
+      title: template.title, packingType: 'Eigen sjabloon', date: '', appointmentId: '', categories: ['Algemeen'],
+      items: template.items.map((item) => ({ id: crypto.randomUUID(), text: item.name, quantity: 1, category: 'Algemeen', memberId: '', essential: false, done: false, note: '' })),
+      notes: template.notes || '', essentialOnly: false, status: 'active'
+    });
+    created = template.items.length;
   } else {
     for (const item of template.items) {
       await repositories.tasks.create({
         title: item.name, description: '', assignedTo: '', date: toDateKey(), time: '', priority: 'normal',
-        category: template.templateType === 'packing' ? 'Inpakken' : 'Huishouden', recurrence: 'none',
+        category: 'Huishouden', recurrence: 'none',
         status: 'open', notes: `Uit sjabloon ${template.title}`
       });
       created += 1;

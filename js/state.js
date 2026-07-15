@@ -11,6 +11,9 @@ import { OutboxRepository } from './repositories/outbox-repository.js';
 import { CloudStateRepository } from './repositories/cloud-state-repository.js';
 import { ActivityRepository } from './repositories/activity-repository.js';
 import { TemplateRepository } from './repositories/template-repository.js';
+import { ModuleRepository } from './repositories/module-repository.js';
+import { HistoryRepository } from './repositories/history-repository.js';
+import { FileRepository } from './repositories/file-repository.js';
 import { AgendaService } from './services/agenda-service.js';
 import { SupabaseClient } from './services/supabase-client.js';
 import { AuthService } from './services/auth-service.js';
@@ -18,6 +21,9 @@ import { FamilyService } from './services/family-service.js';
 import { SyncService } from './services/sync-service.js';
 import { PushNotificationService } from './services/push-notification-service.js';
 import { BackgroundSyncService } from './services/background-sync-service.js';
+import { RealtimeService } from './services/realtime-service.js';
+import { FileService } from './services/file-service.js';
+import { ASSISTANT_ENTITY_TYPES, SUPABASE } from './config.js';
 import { setActiveActor } from './utils/actor.js';
 
 const listeners = new Map();
@@ -30,13 +36,17 @@ export const repositories = {
 };
 repositories.activity = new ActivityRepository();
 repositories.templates = new TemplateRepository();
+repositories.history = new HistoryRepository();
+repositories.files = new FileRepository();
+repositories.modules = Object.fromEntries(ASSISTANT_ENTITY_TYPES.map((module) => [module, new ModuleRepository(module)]));
 
 export const appState = {
   settings: null,
   route: 'home',
   cloud: {
     signedIn: false, user: null, session: null, family: null, familyMembers: [],
-    sync: { status: 'local', lastSyncAt: null, pending: 0, conflicts: 0, error: null }
+    sync: { status: 'local', lastSyncAt: null, pending: 0, conflicts: 0, error: null },
+    realtime: { status: 'off', error: null }
   }
 };
 
@@ -51,6 +61,7 @@ services.auth = new AuthService(supabaseClient, repositories.cloud, (auth) => {
   if (!auth.signedIn && services.family) services.family.clear();
   if (!auth.signedIn) setActiveActor();
   if (services.backgroundSync) (auth.signedIn ? services.backgroundSync.refresh() : services.backgroundSync.disable()).catch(() => {});
+  services.realtime?.refresh().catch(() => {});
   emit('cloud', appState.cloud);
 });
 
@@ -58,6 +69,7 @@ services.family = new FamilyService(supabaseClient, services.auth, ({ context, m
   appState.cloud = { ...appState.cloud, family: context, familyMembers: members };
   setActiveActor(context ? { id: services.auth.user?.id, name: context.display_name } : {});
   services.backgroundSync?.refresh().catch(() => {});
+  services.realtime?.refresh().catch(() => {});
   emit('cloud', appState.cloud);
 });
 
@@ -77,6 +89,18 @@ services.sync = new SyncService({
   }
 });
 services.push = new PushNotificationService(supabaseClient, services.auth, services.family);
+services.files = new FileService({ repository: repositories.files, client: supabaseClient, auth: services.auth, family: services.family });
+services.realtime = new RealtimeService({
+  url: SUPABASE.url,
+  publishableKey: SUPABASE.publishableKey,
+  auth: services.auth,
+  family: services.family,
+  sync: services.sync,
+  onStatusChange: (realtime) => {
+    appState.cloud = { ...appState.cloud, realtime };
+    emit('cloud', appState.cloud);
+  }
+});
 services.backgroundSync = new BackgroundSyncService({
   auth: services.auth,
   family: services.family,
@@ -102,5 +126,6 @@ export async function initializeCloudState() {
     emit('cloud', appState.cloud);
   }
   await services.sync.start();
+  await services.realtime.start();
   return appState.cloud;
 }

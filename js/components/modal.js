@@ -13,9 +13,9 @@ export function openModal({ title, content, submitLabel = 'Opslaan', cancelLabel
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.innerHTML = `<section class="modal${wide ? ' modal-wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <header class="modal-header"><h2 id="modal-title"></h2><button class="icon-button" type="button" data-close aria-label="Sluiten">×</button></header>
-    <form novalidate><div class="modal-content"></div><div class="form-error" role="alert" hidden></div>
-      <footer class="modal-footer"><button class="button secondary" type="button" data-close>${cancelLabel}</button>${onSubmit ? `<button class="button" type="submit">${submitLabel}</button>` : ''}</footer>
+    <header class="modal-header"><button class="icon-button" type="button" data-close aria-label="Sluiten">×</button><h2 id="modal-title"></h2>${onSubmit ? `<button class="modal-save" type="submit" form="active-modal-form">${submitLabel}</button>` : '<span class="modal-header-spacer"></span>'}</header>
+    <form id="active-modal-form" novalidate><div class="modal-content"></div><div class="form-error" role="alert" hidden></div>
+      <footer class="modal-footer"><button class="button secondary" type="button" data-close>${cancelLabel}</button></footer>
     </form></section>`;
   backdrop.querySelector('#modal-title').textContent = title;
   const contentRoot = backdrop.querySelector('.modal-content');
@@ -37,10 +37,10 @@ export function openModal({ title, content, submitLabel = 'Opslaan', cancelLabel
   activeCleanup = () => { document.removeEventListener('keydown', keyHandler); previouslyFocused?.focus?.(); onClose?.(); };
   if (onSubmit) backdrop.querySelector('form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const submit = event.submitter;
+    const submit = event.submitter || backdrop.querySelector('.modal-save');
     const error = backdrop.querySelector('.form-error');
     error.hidden = true;
-    submit.disabled = true;
+    if (submit) submit.disabled = true;
     try {
       const shouldClose = await onSubmit(new FormData(event.currentTarget), event.currentTarget);
       if (shouldClose !== false) closeModal();
@@ -48,7 +48,7 @@ export function openModal({ title, content, submitLabel = 'Opslaan', cancelLabel
       error.textContent = exception.message || 'Opslaan is niet gelukt. Probeer het opnieuw.';
       error.hidden = false;
       error.focus?.();
-    } finally { submit.disabled = false; }
+    } finally { if (submit) submit.disabled = false; }
   });
   root.append(backdrop);
   document.body.style.overflow = 'hidden';

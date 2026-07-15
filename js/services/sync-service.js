@@ -1,14 +1,10 @@
-const ENTITY_ALIASES = Object.freeze({
-  appointment: 'appointment', appointments: 'appointment',
-  shopping: 'shopping',
-  task: 'task', tasks: 'task',
-  meal: 'meal', meals: 'meal',
-  inventory: 'inventory',
-  expense: 'expense', expenses: 'expense',
-  pet: 'pet', pets: 'pet',
-  outing: 'outing', outings: 'outing',
-  settings: 'settings', activity: 'activity', activities: 'activity', template: 'template', templates: 'template'
-});
+import { ENTITY_ALIASES } from '../sync/entity-catalog-module.js';
+
+export function pullCursorQuery(cursor) {
+  if (!cursor?.serverUpdatedAt) return {};
+  if (!cursor.recordId) return { server_updated_at: `gt.${cursor.serverUpdatedAt}` };
+  return { or: `(server_updated_at.gt.${cursor.serverUpdatedAt},and(server_updated_at.eq.${cursor.serverUpdatedAt},record_id.gt.${cursor.recordId}))` };
+}
 
 function newestByRecord(items) {
   const latest = new Map();
@@ -34,13 +30,18 @@ export class SyncService {
     this.running = null;
     this.timer = null;
     this.pollTimer = null;
+    this.realtimeConnected = false;
+    this.queuedReason = null;
     this.started = false;
     this.state = { status: 'local', lastSyncAt: null, pending: 0, conflicts: 0, error: null };
     this.repositoryByEntity = {
       appointment: repositories.appointments, shopping: repositories.shopping, task: repositories.tasks,
       meal: repositories.meals, inventory: repositories.inventory, expense: repositories.expenses,
       pet: repositories.pets, outing: repositories.outings, settings: repositories.settings,
-      activity: repositories.activity, template: repositories.templates
+      activity: repositories.activity, template: repositories.templates,
+      ...(repositories.history ? { history: repositories.history } : {}),
+      ...(repositories.files ? { file: repositories.files } : {}),
+      ...(repositories.modules || {})
     };
   }
 
@@ -50,21 +51,31 @@ export class SyncService {
     const saved = await this.cloudRepository.get('sync-state');
     if (saved) this.#setState({ ...this.state, ...saved, status: this.family.context ? 'idle' : 'local', error: null });
     addEventListener('online', () => this.schedule('internet hersteld', 200));
-    addEventListener('samen-thuis-local-change', () => this.schedule('lokale wijziging', 900));
+    addEventListener('samen-thuis-local-change', () => this.schedule('lokale wijziging', 120));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.schedule('app op voorgrond', 200); });
     addEventListener('focus', () => this.schedule('app actief', 200));
     addEventListener('pageshow', () => this.schedule('pagina hervat', 200));
     this.pollTimer = setInterval(() => {
-      if (document.visibilityState === 'visible') this.schedule('periodieke controle', 100);
-    }, 60 * 1000);
+      if (document.visibilityState === 'visible' && !this.realtimeConnected) this.schedule('controle zonder liveverbinding', 100);
+    }, 10 * 1000);
     if (this.family.context) this.schedule('app geopend', 100);
     await this.#updatePending();
   }
 
   schedule(reason = 'automatisch', delay = 800) {
-    clearTimeout(this.timer);
     if (!this.auth.isSignedIn || !this.family.context || !navigator.onLine) return;
+    if (this.running) {
+      this.queuedReason = reason;
+      return;
+    }
+    clearTimeout(this.timer);
     this.timer = setTimeout(() => this.sync({ reason }).catch(() => {}), delay);
+  }
+
+  setRealtimeConnected(connected) {
+    const changed = this.realtimeConnected !== Boolean(connected);
+    this.realtimeConnected = Boolean(connected);
+    if (changed && !this.realtimeConnected && document.visibilityState === 'visible') this.schedule('terugval zonder liveverbinding', 200);
   }
 
   async sync({ reason = 'handmatig', throwOnError = false } = {}) {
@@ -79,7 +90,14 @@ export class SyncService {
       this.#setState({ status: 'error', error: error.message });
       if (throwOnError) throw error;
       return { ok: false, error };
-    }).finally(() => { this.running = null; });
+    }).finally(() => {
+      this.running = null;
+      if (this.queuedReason) {
+        const queuedReason = this.queuedReason;
+        this.queuedReason = null;
+        this.schedule(queuedReason, 40);
+      }
+    });
     return this.running;
   }
 
@@ -136,7 +154,7 @@ export class SyncService {
         deviceId: response.device_id || response.payload.deviceId
       } : payload;
       if (response?.conflict) conflicts += 1;
-      await this.repositoryByEntity[change.canonical].markSynced(change.recordId, remote, { conflict: Boolean(response?.conflict) });
+      await this.repositoryByEntity[change.canonical].markSynced(change.recordId, remote, { conflict: Boolean(response?.conflict), localRecord: change.payload });
       await this.repositories.outbox.markRecordProcessed(change.entityType, change.recordId, Number(change.version || 1));
     }
     return conflicts;
@@ -144,22 +162,34 @@ export class SyncService {
 
   async pull() {
     const token = await this.auth.getAccessToken();
-    const rows = await this.client.select('family_records', {
-      select: 'entity_type,record_id,payload,version,updated_at,deleted_at,device_id',
-      order: 'updated_at.asc'
-    }, token);
+    const cursorKey = `sync-cursor:${this.family.context.family_id}`;
+    let cursor = await this.cloudRepository.get(cursorKey);
     let applied = 0;
-    for (const row of rows || []) {
-      const entityType = ENTITY_ALIASES[row.entity_type];
-      const repository = this.repositoryByEntity[entityType];
-      if (!repository || !row.payload) continue;
-      const record = {
-        ...row.payload, id: row.record_id, version: Number(row.version || 1),
-        updatedAt: row.updated_at, deletedAt: row.deleted_at ?? row.payload.deletedAt ?? null,
-        deviceId: row.device_id || row.payload.deviceId, syncStatus: 'synced'
-      };
-      const result = await repository.applyRemote(record);
-      if (result.applied) applied += 1;
+    const pageSize = 500;
+    for (let page = 0; page < 100; page += 1) {
+      const rows = await this.client.select('family_records', {
+        select: 'entity_type,record_id,payload,version,updated_at,deleted_at,device_id,server_updated_at',
+        order: 'server_updated_at.asc,record_id.asc', limit: pageSize, ...pullCursorQuery(cursor)
+      }, token);
+      for (const row of rows || []) {
+        const entityType = ENTITY_ALIASES[row.entity_type];
+        const repository = this.repositoryByEntity[entityType];
+        if (!repository || !row.payload) continue;
+        const record = {
+          ...row.payload, id: row.record_id, version: Number(row.version || 1),
+          updatedAt: row.updated_at, deletedAt: row.deleted_at ?? row.payload.deletedAt ?? null,
+          deviceId: row.device_id || row.payload.deviceId, syncStatus: 'synced'
+        };
+        const result = await repository.applyRemote(record);
+        if (result.applied) applied += 1;
+      }
+      const last = rows?.at?.(-1);
+      if (!last?.server_updated_at) break;
+      const nextCursor = { serverUpdatedAt: last.server_updated_at, recordId: last.record_id };
+      if (cursor?.serverUpdatedAt === nextCursor.serverUpdatedAt && cursor?.recordId === nextCursor.recordId) break;
+      cursor = nextCursor;
+      await this.cloudRepository.set(cursorKey, cursor);
+      if (rows.length < pageSize) break;
     }
     if (applied) await this.onDataChange({ applied });
     return applied;

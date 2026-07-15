@@ -61,4 +61,31 @@ export class SupabaseClient {
   rpc(name, body, accessToken) { return this.request(`/rest/v1/rpc/${name}`, { method: 'POST', accessToken, body }); }
   select(table, query, accessToken) { return this.request(`/rest/v1/${table}`, { accessToken, query }); }
   invokeFunction(name, body, accessToken) { return this.request(`/functions/v1/${name}`, { method: 'POST', accessToken, body }); }
+
+  async uploadStorage(bucket, path, blob, accessToken, { upsert = true } = {}) {
+    let response;
+    try {
+      response = await this.fetcher(`${this.url}/storage/v1/object/${encodeURIComponent(bucket)}/${path.split('/').map(encodeURIComponent).join('/')}`, {
+        method: 'POST',
+        headers: {
+          apikey: this.publishableKey, Authorization: `Bearer ${accessToken}`,
+          'Content-Type': blob.type || 'application/octet-stream', 'x-upsert': String(upsert)
+        }, body: blob
+      });
+    } catch { throw new Error('Het bestand kon niet worden geüpload. Het blijft veilig lokaal bewaard.'); }
+    if (!response.ok) throw new Error(errorMessage(response.status, await response.json().catch(() => null)));
+    return response.json().catch(() => ({}));
+  }
+
+  async downloadStorage(bucket, path, accessToken) {
+    const response = await this.fetcher(`${this.url}/storage/v1/object/authenticated/${encodeURIComponent(bucket)}/${path.split('/').map(encodeURIComponent).join('/')}`, {
+      headers: { apikey: this.publishableKey, Authorization: `Bearer ${accessToken}` }
+    });
+    if (!response.ok) throw new Error(errorMessage(response.status, await response.json().catch(() => null)));
+    return response.blob();
+  }
+
+  async deleteStorage(bucket, paths, accessToken) {
+    return this.request(`/storage/v1/object/${encodeURIComponent(bucket)}`, { method: 'DELETE', accessToken, body: { prefixes: paths } });
+  }
 }

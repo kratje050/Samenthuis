@@ -1,7 +1,7 @@
 export const APP_NAME = 'Samen Thuis';
-export const APP_VERSION = '1.4.5';
+export const APP_VERSION = '3.0.0';
 export const DATABASE_NAME = globalThis.SAMEN_THUIS_TEST_DB || 'samen-thuis-db';
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 export const SETTINGS_ID = '20000000-0000-4000-8000-000000000001';
 
 export const SUPABASE = Object.freeze({
@@ -23,11 +23,22 @@ export const STORES = Object.freeze({
   backups: 'backups',
   cloud: 'cloud',
   activity: 'activity',
-  templates: 'templates'
+  templates: 'templates',
+  assistant: 'assistantRecords',
+  history: 'recordHistory',
+  files: 'files',
+  fileBlobs: 'fileBlobs'
 });
 
+export const ASSISTANT_ENTITY_TYPES = Object.freeze([
+  'notice', 'inbox', 'packing', 'child', 'routine', 'family_mode', 'maintenance',
+  'appliance', 'storage_location', 'loan', 'gift', 'waste', 'babysitting', 'emergency',
+  'subscription', 'savings_goal', 'price_history', 'visit_plan', 'decision_wheel',
+  'reward', 'family_memory', 'bucket_list', 'home_project'
+]);
+
 export const SYNC_STATUSES = ['local', 'pending', 'synced', 'conflict'];
-export const ROUTES = ['home', 'agenda', 'shopping', 'tasks', 'meals', 'inventory', 'expenses', 'pets', 'outings', 'activity', 'templates', 'settings'];
+export const ROUTES = ['home', 'agenda', 'shopping', 'tasks', 'daily', 'departure', 'packing', 'routines', 'leftovers', 'decision', 'babysitter', 'emergency', 'conflicts', 'history', 'meals', 'inventory', 'expenses', 'pets', 'outings', 'activity', 'templates', 'assistant', 'settings'];
 
 export const MEMBER_IDS = Object.freeze({
   roy: '10000000-0000-4000-8000-000000000001', demy: '10000000-0000-4000-8000-000000000002',

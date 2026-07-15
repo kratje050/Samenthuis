@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#6f4e40">
+  <meta name="theme-color" content="#c65d58">
   <meta name="description" content="Samen Thuis: een gratis, offline gezinsagenda en gezinsplanner.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -23,21 +23,36 @@
   <a class="skip-link" href="#main-content">Naar de inhoud</a>
   <div id="app" class="app-shell" aria-busy="true">
     <aside class="side-nav" aria-label="Hoofdnavigatie">
-      <a class="brand" href="#home" aria-label="Samen Thuis home"><span class="brand-mark">ST</span><span>Samen Thuis</span></a>
+      <a class="brand" href="#home" aria-label="Gezin &amp; Co home">
+        <svg class="brand-logo" aria-hidden="true"><use href="./assets/icons/ui-icons.svg#logo"></use></svg>
+        <span><strong>Gezin &amp; Co</strong><small>Samen organiseren <span aria-hidden="true">♡</span></small></span>
+      </a>
       <nav id="desktop-nav"></nav>
-      <div class="local-note"><span aria-hidden="true">●</span> Alleen lokaal op dit apparaat</div>
+      <div class="sidebar-family">
+        <div class="sidebar-family-heading"><span>Gezinsleden</span><a href="#settings">Bewerk</a></div>
+        <div id="sidebar-members"></div>
+      </div>
+      <button class="local-note" id="sidebar-cloud-status" type="button"><span class="status-dot" aria-hidden="true"></span><span>Alleen lokaal op dit apparaat</span></button>
     </aside>
     <div class="app-column">
       <header class="topbar">
-        <div><p class="eyebrow" id="page-eyebrow">Gezinsplanner</p><h1 id="page-title">Even laden…</h1></div>
-        <div class="top-actions"><button class="icon-button cloud-button" id="cloud-status" type="button" aria-label="Open gezinsaccount en synchronisatie" data-sync-status="local">☁</button><button class="icon-button" id="global-search" type="button" aria-label="Zoek in heel Samen Thuis">⌕</button><button class="icon-button" id="theme-toggle" type="button" aria-label="Wissel licht en donker thema">◐</button><a class="avatar-button" href="#settings" aria-label="Open instellingen">ST</a></div>
+        <button class="icon-button mobile-menu-button" id="mobile-menu" type="button" aria-label="Open meer onderdelen"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons/ui-icons.svg#menu"></use></svg></button>
+        <a class="mobile-brand" href="#home" aria-label="Gezin &amp; Co home"><svg class="brand-logo" aria-hidden="true"><use href="./assets/icons/ui-icons.svg#logo"></use></svg><span><strong>Gezin &amp; Co</strong><small>Samen organiseren ♡</small></span></a>
+        <div class="page-heading"><p class="eyebrow" id="page-eyebrow">Gezinsplanner</p><h1 id="page-title">Even laden…</h1></div>
+        <div class="top-actions">
+          <button class="icon-button cloud-button" id="cloud-status" type="button" aria-label="Open gezinsaccount en synchronisatie" data-sync-status="local"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons/ui-icons.svg#cloud"></use></svg></button>
+          <a class="icon-button notification-shortcut" href="#settings" aria-label="Open meldingsinstellingen"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons/ui-icons.svg#bell"></use></svg></a>
+          <button class="icon-button" id="global-search" type="button" aria-label="Zoek in heel Samen Thuis"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons/ui-icons.svg#search"></use></svg></button>
+          <button class="icon-button" id="theme-toggle" type="button" aria-label="Wissel licht en donker thema"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons/ui-icons.svg#theme"></use></svg></button>
+          <a class="avatar-button" href="#settings" aria-label="Open instellingen">ST</a>
+          <button class="header-add" id="quick-add" type="button" aria-label="Snel iets toevoegen"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons/ui-icons.svg#plus"></use></svg></button>
+        </div>
       </header>
       <div id="offline-banner" class="status-banner" hidden>Je bent offline. Alles blijft lokaal beschikbaar.</div>
       <div id="update-banner" class="status-banner update" hidden>Er is een nieuwe versie beschikbaar. <button id="apply-update" class="text-button" type="button">Nu bijwerken</button></div>
       <main id="main-content" tabindex="-1"><div class="loading-card">Samen Thuis wordt klaargezet…</div></main>
     </div>
     <nav class="bottom-nav" id="mobile-nav" aria-label="Hoofdnavigatie"></nav>
-    <button class="fab" id="quick-add" type="button" aria-label="Snel iets toevoegen">＋</button>
   </div>
   <div id="modal-root"></div>
   <div id="toast-root" class="toast-region" aria-live="polite" aria-atomic="true"></div>

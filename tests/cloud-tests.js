@@ -1,4 +1,4 @@
-import { newestByRecord } from '../js/services/sync-service.js';
+import { newestByRecord, pullCursorQuery } from '../js/services/sync-service.js';
 import { SupabaseClient } from '../js/services/supabase-client.js';
 import { assert, equal, includes } from './test-utils.js';
 
@@ -46,5 +46,10 @@ export const cloudTests = [
     includes(request.url, '/rest/v1/rpc/test');
     equal(request.options.headers.apikey, 'public-test');
     equal(request.options.headers.Authorization, 'Bearer user-token');
+  }],
+  ['synchronisatiecursor voorkomt overslaan bij gelijke servertijd', () => {
+    const query = pullCursorQuery({ serverUpdatedAt: '2026-07-15T10:00:00.000Z', recordId: '10000000-0000-4000-8000-000000000001' });
+    includes(query.or, 'server_updated_at.gt.2026-07-15T10:00:00.000Z');
+    includes(query.or, 'record_id.gt.10000000-0000-4000-8000-000000000001');
   }]
 ];

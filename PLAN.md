@@ -1,124 +1,175 @@
-# Architectuurplan – Samen Thuis
+# Uitvoeringsplan – Samen Thuis
 
-## Doel en grenzen
+## 1. Nulmeting op 15 juli 2026
 
-Samen Thuis is een gratis, Nederlandstalige, mobile-first gezins-PWA. IndexedDB blijft op ieder apparaat de offline bron voor de UI. Versie 1.4 bevat optionele accounts, centrale Supabase-synchronisatie, PWA-achtergrondtaken en Web Push; zonder account werkt de app nog steeds volledig lokaal. `localStorage` bevat alleen kleine interfacevoorkeuren en het apparaat-ID. Sessies staan in een aparte IndexedDB-store.
+Samen Thuis is een statische, Nederlandstalige PWA op basis van HTML5, CSS3 en vanilla JavaScript ES-modules. De UI gebruikt hashrouting, IndexedDB is de directe offline bron en Supabase wordt optioneel gebruikt voor Auth, een gezamenlijk gezin, Realtime, Web Push en centrale synchronisatie. Netlify publiceert de repository zonder bouwstap.
 
-## Architectuur
+De nulmeting is uitgevoerd vóór nieuwe implementatie. `npm test` geeft **45 geslaagde en 0 mislukte tests**. De startpagina op `http://localhost:8080/#home` opent zonder consolefouten of waarschuwingen. De werkmap was bij aanvang schoon.
 
-De app bestaat uit vijf duidelijke lagen:
+### Volledig werkende bestaande basis
 
-1. **Presentatie** – routes, views en herbruikbare modals, meldingen en agendaonderdelen. Views praten nooit rechtstreeks met IndexedDB.
-2. **Services** – validatie, herhaling, agendaquery's, notificaties en back-up/import.
-3. **Repositories** – één repository per domein met een uniforme API (`getAll`, `getById`, `create`, `update`, `softDelete`, `restore`). Mutaties schrijven record en outbox-item in één IndexedDB-transactie.
-4. **Opslag** – database-opening, schema en migraties. IndexedDB is de directe bron voor de UI; Supabase is na aanmelding de gedeelde gezinsbron.
-5. **Synchronisatie** – de outbox-adapter pusht lokale mutaties via beveiligde RPC's en past centrale records zonder nieuwe outboxmutatie lokaal toe.
-6. **PWA-achtergrondlaag** – de service worker kan dezelfde outbox zelfstandig verwerken, de korte Supabase-sessie met de refresh-token roteren en centrale records rechtstreeks in de bestaande IndexedDB-stores toepassen. Een Web Lock voorkomt dat venster en service worker tegelijk dezelfde wachtrij verwerken.
+- dashboard met agenda, taken, boodschappen, maaltijden, voorraad, uitgaven, verjaardagen, huisdieren, activiteit, opslag en syncstatus;
+- agenda met dag-, week-, maand-, lijst-, vandaag- en komende weergaven, zoeken, filters, herhaling, herinneringen, verjaardagen, soft delete, herstel en ICS-import/export;
+- boodschappen, taken, maaltijdplanner/recepten, voorraad, uitgaven, huisdieren en uitjes met lokale CRUD;
+- gezinsleden, categorieën, thema, datum/tijd, valuta en notificatie-instellingen;
+- sjablonen voor boodschappen, taken en eenvoudige inpaklijsten;
+- algemene zoekfunctie, snelle acties, activiteit en centrale prullenbak;
+- JSON-back-up, gevalideerde import, samenvoegen/vervangen en lokale veiligheidskopie;
+- Supabase e-mail/wachtwoordauthenticatie, gezinsaccounts en eenmalige uitnodigingscodes;
+- generieke `family_records`-synchronisatie, IndexedDB-outbox, Realtime-signaal, open/voorgrond/online-triggers en PWA-achtergrondpogingen;
+- manifest, appiconen, service worker, versiecache, updatebanner en mobiele installatiehulp;
+- RLS voor bestaande gezinsgegevens en uitsluitend een openbare publishable key in de frontend.
 
-ES-modules houden onderdelen los gekoppeld. `state.js` bevat alleen runtime-status en een eventbus. `router.js` beheert hashroutes. De service worker cachet uitsluitend lokale appbestanden en gebruikt een versiegebonden cache met updatecontrole. De PWA-installatieservice vangt de Android-installatieprompt vroeg op en toont op mobiele browsers een eigen toegankelijke keuze; op iPhone geeft dezelfde dialoog de verplichte Safari-stappen.
+### Gedeeltelijk werkende of te verbeteren onderdelen
 
-## Datamodel
+- conflicten worden gedetecteerd en gemarkeerd, maar er is nog geen scherm om beide versies te vergelijken en handmatig te kiezen of samen te voegen;
+- de prullenbak ondersteunt herstel, maar nog geen definitief verwijderen, bewaartermijn of versieherstel;
+- paklijsten zijn eenvoudige tekstsjablonen en missen toewijzing, aantallen, essentieel-status, afspraakkoppeling en historie;
+- afbeeldingen en documenten hebben nog geen generieke compressie-, Blob- en privé-Storage-laag;
+- Supabase SQL staat hoofdzakelijk in één installatiescript; er ontbreken genummerde, veilig herhaalbare migraties;
+- de synchronisatie haalt alle centrale records op en gebruikt nog geen cursor/paginering;
+- de routefout bevat één inline `onclick`; dit wordt vervangen door een normale eventlistener;
+- het pakket bevat alleen een Node-testscript; lint-, statische PWA-, database- en uitgebreide browsertests ontbreken;
+- de bestaande automatische tests dekken nog geen echte lokale Supabase-omgeving, productie-RLS of Storage-policies;
+- een live productietest met drie echte gebruikers wordt niet uitgevoerd zonder gescheiden testaccounts en expliciet veilige testdata.
 
-Alle domeinrecords bevatten minimaal:
+### Ontbrekende functies
 
-- `id` (UUID);
-- `createdAt`, `updatedAt`, `deletedAt`;
-- `version` (oplopend geheel getal);
-- `deviceId` (blijvend willekeurig apparaat-ID);
-- `syncStatus` (`local`, `pending`, `synced`, `conflict`);
-- `updatedBy` (gezinslid-ID of `device`/`system`).
+De volgende domeinen ontbreken nog: prikbord, inbox, dagelijks overzicht, vertrek-assistent, uitgebreide paklijsten, kindprofielen, routines, gezinsmodi, onderhoud, apparaten/garantie, “Wat ligt waar?”, lenen, cadeaukluis, afvalkalender, oppasmodus, noodkaart, abonnementen, spaardoelen, prijsgeheugen, restjesplanner, bezoekplanner, besliswiel, beloningen/uitdagingen, gezinstijdlijn, bucketlist, klusprojecten en beperkte versiegeschiedenis.
 
-Iedere mutatie levert daarnaast een outbox-record op met `changeId`, `entityType`, `recordId`, `operation`, `payload`, `version`, `changedAt`, `deviceId` en `processed`. Soft deletes behouden het bronrecord en gebruiken operatie `delete`.
+## 2. Bestaande architectuur die behouden blijft
 
-### Object stores
+1. **Presentatie** – `router.js`, views en herbruikbare modals. Schermen doen geen directe IndexedDB- of Supabase-mutaties.
+2. **Services** – validatie, afgeleide overzichten, conversies, bestanden, back-up/import en synchronisatie.
+3. **Repositories** – uniforme API met `getAll`, `getById`, `create`, `update`, `softDelete` en `restore`. Een mutatie schrijft record, activiteit en outbox atomair.
+4. **IndexedDB** – directe offline bron voor de UI. `localStorage` blijft beperkt tot kleine interfacevoorkeuren en apparaat-ID.
+5. **Supabase-adapter** – dezelfde outbox en dezelfde `family_records`-tabel blijven de centrale synchronisatielaag. Er komt geen tweede auth- of syncsysteem.
+6. **PWA-laag** – service worker cachet uitsluitend de statische app-shell. Persoonlijke data blijft in IndexedDB en wordt niet in Cache Storage geplaatst.
 
-- `appointments` – agenda-items inclusief herhaling, herinnering en voltooiing;
-- `shopping` – gezamenlijke boodschappen;
-- `tasks` – huishoudelijke taken en historie;
-- `meals` – weekmaaltijden en recepten (`kind` onderscheidt beide);
-- `inventory` – voorraad;
-- `expenses` – handmatige uitgaven;
-- `pets` – huisdieren, medicatie, vaccinaties en afspraken;
-- `outings` – uitjes, ideeën en vakanties;
-- `settings` – appinstellingen, gezinsleden en categorieën;
-- `outbox` – lokale wijzigingswachtrij;
-- `backups` – automatische veiligheidskopie vóór import.
-- `activity` – atomair vastgelegde gezinsactiviteit;
-- `templates` – herbruikbare boodschappen-, taken- en inpaklijsten;
-- `cloud` – lokale sessie- en synchronisatiestatus, bewust buiten exports.
+## 3. Uitbreiding van het lokale datamodel
 
-Indexen bestaan op veelgebruikte datum-, status-, categorie- en wijzigingsvelden. Lokale queries blijven eenvoudig en betrouwbaar; agenda-occurrences worden voor het zichtbare datumbereik door de agenda-service gegenereerd.
+De database gaat van versie 3 naar versie 4. Bestaande stores en records blijven onaangetast.
 
-## Standaardgegevens
+Nieuwe stores:
 
-Bij de eerste start worden Roy, Demy, Miley en Navy met eigen kleuren en profieliconen toegevoegd. Ook worden de gevraagde categorieën en Nederlandse voorkeuren aangemaakt. Seed-data wordt idempotent geplaatst en niet opnieuw toegevoegd nadat een gebruiker instellingen aanpast.
+- `assistantRecords`: records van alle nieuwe gezinsassistentmodules, met een index op `module`, `status`, `date`, `updatedAt`, `deletedAt` en `syncStatus`;
+- `recordHistory`: maximaal tien vorige versies per belangrijk record, geïndexeerd op brononderdeel, record-ID en wijzigingsdatum;
+- `files`: privé lokale Blob-opslag met metadata, MIME-type, bestandsgrootte, hash, synchronisatiestatus en koppeling aan een record.
 
-## Agenda en herhaling
+Ieder synchroniseerbaar record behoudt de bestaande camelCase-clientvelden `id`, `createdAt`, `updatedAt`, `deletedAt`, `version`, `deviceId`, `syncStatus` en `updatedBy`. De Supabase-laag zet deze veilig om naar de bestaande snake_case-kolommen `family_id`, `created_at`, `updated_at`, `deleted_at`, `created_by`, `updated_by` en `device_id` waar fysieke kolommen worden gebruikt. De payload blijft achterwaarts compatibel.
 
-Een afspraak blijft één bronrecord. De recurrence-service projecteert occurrences voor een begrensd bereik en ondersteunt dagelijks, werkdagen, wekelijks, tweewekelijks, maandelijks, jaarlijks en een eigen dag/week/maandinterval met optionele einddatum. Agendaweergaven vragen uitsluitend occurrences voor hun eigen zichtbare bereik op. Zo blijft de app ook met honderden afspraken snel.
+Er komt één `ModuleRepository` boven `assistantRecords`. Iedere module krijgt een eigen repository-instantie en eigen `entityType`, zodat schermen en synchronisatie domeinspecifiek blijven zonder tientallen identieke IndexedDB-stores te maken. UUID’s voorkomen sleutelbotsingen. Het is geen tweede synchronisatielaag: alle wijzigingen gaan door `BaseRepository`, activiteit en de bestaande outbox.
 
-## Herinneringen
+## 4. Veilige Supabase-migraties
 
-De reminder-service controleert tijdens gebruik periodiek welke herinneringen verschuldigd zijn. Met toestemming gebruikt de app browsernotificaties; anders verschijnen blijvende waarschuwingen in de app. Voor een gekoppeld gezin kan een Supabase Edge Function standaard Web Push versturen wanneer de PWA gesloten is. Supabase Cron controleert iedere minuut, een unieke afleveringssleutel voorkomt dubbele meldingen en verlopen browserinschrijvingen worden automatisch gedeactiveerd. De VAPID-privésleutel en croncode blijven uitsluitend in RLS-afgeschermde servertabellen.
+Nieuwe, genummerde migraties komen onder `supabase/migrations/`:
 
-## Gebruiksgemak en herstel
+1. uitbreiding van de toegestane `entity_type`-waarden;
+2. extra metadata voor incrementele synchronisatie en indexen;
+3. RLS-regels voor servermatig verborgen cadeau-items;
+4. een privé Storage-bucket met gezinsgebonden paden, MIME- en groottebeleid;
+5. RPC-uitbreiding die het gezin uitsluitend uit `auth.uid()` afleidt;
+6. idempotente Realtime-publicatie en bijgewerkte grants.
 
-Een globale zoekservice leest alle actieve domeinrecords uitsluitend via repositories, normaliseert hoofdletters en accenten en levert begrensde, gesorteerde resultaten aan één zoekdialoog. Een vaste snelle-toevoegknop routeert naar de bestaande gevalideerde formulieren; er bestaat dus geen tweede schrijfpad.
+Geen bestaande tabel, kolom, gebruiker, policy of productierecord wordt verwijderd. Cadeau-uitsluiting wordt in RLS én de sync-RPC afgedwongen; een uitgesloten gebruiker ontvangt het record niet via select, Realtime of pull. Een lokale pincode is alleen een extra schermslot en nooit serverautorisatie.
 
-De centrale prullenbak verzamelt soft-deleted records uit alle domeinrepositories en herstelt ze via de uniforme `restore()`-methode. De agenda behoudt daarnaast zijn eigen contextuele prullenbak. De datum van de laatste door de gebruiker gedownloade back-up is een kleine interfacevoorkeur in `localStorage` en wordt op dashboard en instellingen getoond; de back-upinhoud zelf blijft uit IndexedDB komen.
+## 5. Synchronisatie-uitbreiding
 
-## Back-up en herstel
+- nieuwe moduletypen worden toegevoegd aan één centrale entiteitscatalogus die venster- en service-workersync delen;
+- pull gebruikt een opgeslagen `server_updated_at`-cursor en begrensde pagina’s, met een volledige eerste synchronisatie als veilige terugval;
+- Realtime blijft alleen een wake-upsignaal; records worden altijd opnieuw via RLS opgehaald;
+- remote records worden zonder nieuwe outboxmutatie toegepast;
+- dubbele events worden op `entityType + recordId + version` genegeerd;
+- een conflict bewaart lokale en centrale versies in `recordHistory` en krijgt `syncStatus: conflict`;
+- een conflictscherm toont verschillende velden en biedt lokaal behouden, centraal behouden of veldgewijs samenvoegen;
+- uitloggen of gezin wisselen ruimt Realtime-kanalen, timers en cursors op;
+- Background Sync blijft best effort; openen, voorgrond en internetherstel blijven de betrouwbare terugval.
 
-Export leest alle domeinstores en maakt één versieerbaar JSON-bestand. Authsessies blijven bewust buiten back-ups. Import valideert appnaam, schema-versie, verplichte secties en UUID's. Vóór iedere import wordt een volledige veiligheidskopie in `backups` opgeslagen. Vervangen wist pas na expliciete bevestiging de domeinstores; samenvoegen kiest per ID het record met de hoogste versie en daarna de nieuwste `updatedAt`. Geïmporteerde wijzigingen worden als pending geregistreerd zodat de actieve synchronisatielaag ze kan verwerken.
+## 6. Nieuwe presentatie en navigatie
 
-## PWA en cachebeleid
+Nieuwe onderdelen worden niet als tientallen losse hoofdnavigatieknoppen getoond. Onder **Meer** komen groepen:
 
-`manifest.json` maakt de app installeerbaar. De service worker gebruikt app-shell precaching, netwerk-eerst voor navigatie en cache-eerst voor lokale assets. Cache-namen bevatten de appversie; bij activatie worden oude caches verwijderd. De UI meldt een wachtende nieuwe service worker en laat de gebruiker bewust bijwerken.
+- **Vandaag**: dagelijks overzicht, routines en gezinsmodus;
+- **Gezin**: prikbord, inbox, kinderen, oppasmodus, noodkaart, beloningen en tijdlijn;
+- **Plannen**: vertrek, paklijsten, bezoekplanner, besliswiel en bucketlist;
+- **Thuis**: onderhoud, apparaten, opslaglocaties, leenlijst, afvalkalender en klusprojecten;
+- **Geld**: cadeaukluis, abonnementen, spaardoelen en prijsgeheugen;
+- **Eten**: restjesplanner naast de bestaande maaltijdplanner.
 
-## Toegankelijkheid en ontwerp
+Een generieke, schema-gestuurde moduleview levert consistente zoeken/filteren, CRUD, soft delete, herstel, validatie, lege toestanden en toegankelijke formulieren. Specifieke workflows krijgen eigen views/services: dagelijks overzicht, vertrek-assistent, paklijst, routines, gezinsmodi, oppasmodus, noodkaart/print, restjesmatching, besliswiel, beloningen en conflictoplossing.
 
-Semantische HTML, gekoppelde labels, toetsenbordbediening, zichtbare focus, live-regio's, voldoende kleurcontrast en aanraakvlakken van minimaal 44px zijn leidend. De warme crème/taupe/oudroze vormtaal gebruikt lokale SVG-iconen en systeemlettertypen. Telefoons krijgen ondernavigatie; vanaf tabletbreedte verschijnt een zijmenu.
+## 7. Bestanden en privacy
 
-## Teststrategie
+- afbeeldingen worden vóór lokale opslag verkleind en gecomprimeerd;
+- standaard maximaal 1600 × 1600 pixels en maximaal 1 MB na compressie;
+- documenten maximaal 5 MB en alleen expliciet toegestane MIME-types;
+- IndexedDB bewaart een Blob, nooit onbegrensde Base64 in een recordpayload;
+- online bestanden gaan alleen naar een privébucket met pad `familyId/recordId/fileId`;
+- downloads gebruiken korte, geautoriseerde requests of signed URLs;
+- definitief verwijderen ruimt het bijbehorende bestand op;
+- kind-, nood- en cadeaugegevens krijgen zichtbare privacywaarschuwingen;
+- medische gegevens worden alleen door het gezin ingevoerd en niet geïnterpreteerd.
 
-- pure unit-tests voor UUID/validatie, herhaling, datumgrenzen en berekeningen;
-- repository- en importtests in een echte browser-IndexedDB;
-- integratietest voor CRUD, soft delete/herstel, taakherhaling en maaltijd → boodschappen;
-- performancetest met honderden afspraken en boodschappen;
-- handmatige browsercontrole op smal mobiel, tablet en desktop;
-- PWA-controle van manifest, service-workerregistratie, offline herladen en cache-update;
-- herlaadtest om gegevensbehoud te bevestigen.
+## 8. Bestanden die worden toegevoegd of aangepast
 
-## Fase 2: centrale database en automatische synchronisatie
+Belangrijkste nieuwe bestanden:
 
-Fase 2 is in versie 1.4 als **losse sync-adapter** naast de bestaande repositories geïmplementeerd; views en domeinopslag blijven intact. Supabase levert Auth, PostgreSQL, Cron en één Edge Function voor Web Push. Alleen de openbare publishable key staat in de client. De secret- en service-role keys worden nergens in de statische website gebruikt.
+- `js/modules/assistant-modules.js` – modulecatalogus, velden, filters en navigatiegroepen;
+- `js/repositories/module-repository.js`, `history-repository.js`, `file-repository.js`;
+- `js/services/assistant-service.js`, `conversion-service.js`, `file-service.js`, `daily-overview-service.js`, `departure-service.js`, `packing-service.js`, `routine-service.js`, `leftovers-service.js`, `finance-tools-service.js`, `conflict-service.js`;
+- `js/views/assistant-view.js`, `daily-view.js`, `departure-view.js`, `packing-view.js`, `routines-view.js`, `babysitter-view.js`, `emergency-view.js`, `leftovers-view.js`, `decision-wheel-view.js`, `conflicts-view.js`;
+- `supabase/migrations/*.sql`;
+- aanvullende unit-, integratie-, browser-, beveiligings-, performance- en PWA-tests;
+- `IMPLEMENTATION_REPORT.md` en `TEST_REPORT.md`.
 
-Het servermodel bestaat uit `families`, `family_members` en `family_records`. Accounts voor Roy en Demy kunnen via een gehashte, zeven dagen geldige en eenmalig bruikbare uitnodigingscode lid worden van één gezamenlijk gezin. Beveiligde RPC-functies bepalen het `familyId` uitsluitend via `auth.uid()`. Wachtwoorden worden alleen door Supabase Auth verwerkt, sessies gebruiken korte toegangstokens plus refresh-rotatie en alle communicatie loopt via HTTPS.
+Bestaande aanpassingen zijn nodig in `config.js`, IndexedDB-schema/migraties, `BaseRepository`, state, router, dashboard, agendaformulier, meerweergave, zoeken, back-up/import, prullenbak, instellingen, CSS, service worker, manifest, Netlify-headers, README en Supabase SQL.
 
-De sync-engine verwerkt de bestaande outbox:
+## 9. Risico’s voor bestaande gegevens
 
-1. bij openen van de app;
-2. wanneer de app terug naar de voorgrond komt;
-3. bij het `online`-event;
-4. kort na iedere lokale wijziging, met debounce en retries;
-5. iedere minuut zolang het appvenster zichtbaar is;
-6. via een eenmalige Background Sync-taak na wachtende wijzigingen;
-7. via Periodic Background Sync met een aangevraagd minimuminterval van vijftien minuten, waar ondersteund;
-8. bij een Web Push-wake-up van de service worker.
+- **Schema-upgrade:** uitsluitend nieuwe stores en indexen; geen bestaande stores worden gewist.
+- **Sync-entiteiten:** oude clients kennen nieuwe typen niet en negeren ze. De server bewaart ze; na update worden ze zichtbaar.
+- **Gedeelde lokale module-store:** alle records dragen een onveranderlijk `module`-veld en UUID. Repositories filteren dit veld altijd.
+- **Cadeaugeheimen:** bestaande RLS is onvoldoende voor uitsluiting per gebruiker; de cadeaukluis wordt pas als online-veilig beschouwd nadat de nieuwe migratie is toegepast.
+- **Bestanden:** een mislukte upload mag een lokaal record nooit blokkeren. Bestanden houden een eigen retry-status.
+- **Databasewijzigingen op productie:** migratiebestanden worden geleverd en statisch getest, maar niet zonder controle rechtstreeks op productie uitgevoerd.
+- **Browserbeperkingen:** iOS garandeert geen periodieke achtergrondtaak. De UI belooft daarom geen exacte achtergrondfrequentie.
 
-Background Sync blijft afhankelijk van de planning en energieregels van de browser. Periodieke uitvoering is dus niet exact of gegarandeerd, zeker niet op iOS. De atomaire IndexedDB-outbox en de open/voorgrond/online-triggers zijn daarom altijd de bron van betrouwbaarheid en halen gemiste achtergrondmomenten later in.
+## 10. Testplan per laag
 
-Per wijziging stuurt de client record-ID, versie, wijzigingstijd, tombstone, payload en apparaat-ID. De server kiest eerst de hoogste versie en bij een gelijke versie de nieuwste wijzigingstijd. Een gelijktijdige afwijkende versie wordt als conflict teruggegeven en deterministisch samengevoegd; de synchronisatiestatus meldt dit. Na serverbevestiging wordt ieder bijbehorend outbox-item `processed: true` en het lokale record `synced`.
+- **Unit:** validatie, modulefilters, routines, paklijsten, prijs-/spaarberekeningen, restjesmatching, soft deletes, geschiedenis, bestandsvalidatie en cadeauzichtbaarheid.
+- **Repository/integratie:** lokale CRUD, outbox, remote apply, herstel, conversies zonder duplicaten, import/export en cursor/paginering.
+- **Sync:** offline mutatie, push, pull, Realtime-wake-up, dubbele events, conflict, gezin wisselen, uitloggen en sessieherstel.
+- **RLS/Storage:** SQL-policytests voor gebruikers A/B in gezin 1 en C in gezin 2; cadeaus en private bestanden. Alleen in een lokale of expliciete testomgeving, nooit met productiegegevens.
+- **E2E:** alle gevraagde nieuwe workflows plus bestaande kernformulieren.
+- **Responsive:** 360×800, 390×844, 412×915, 768×1024, 1024×768 en 1440×900.
+- **Performance:** 1.000 afspraken, taken en boodschappen; 500 prijzen en momenten; 250 apparaten en onderhoudsitems. Metingen worden eerlijk in `TEST_REPORT.md` opgenomen.
+- **PWA:** manifest, service worker, volledige app-shell, offline herladen, cache-update, iOS-hulp en geen API-responses in Cache Storage.
+- **Console:** ieder scherm controleren op JavaScriptfouten, afgewezen promises, 404’s, dubbele listeners en service-workerfouten.
 
-Row Level Security past autorisatie per gezin toe op iedere leesquery. Schrijfbewerkingen lopen uitsluitend via gecontroleerde RPC-functies met lidmaatschapscontrole, invoervalidatie en auditvelden. Automatische synchronisatie wordt pas geactiveerd na expliciete aanmelding; bij netwerk- of serveruitval blijft de offline app bruikbaar en blijft de outbox ongewijzigd wachten.
+## 11. Uitvoervolgorde
 
-## Oplevervolgorde
+1. nulmeting en dit plan;
+2. bestaande fouten en inline handler herstellen;
+3. IndexedDB-versie 4, repositories, geschiedenis en bestanden;
+4. veilige Supabase-migraties, RLS en Storage;
+5. generieke synccatalogus, cursor en conflictservice;
+6. prikbord en inbox;
+7. dagelijks overzicht, vertrek-assistent en paklijsten;
+8. kinderen, routines en gezinsmodi;
+9. onderhoud, apparaten, opslaglocaties en lenen;
+10. cadeaukluis, afval, oppasmodus en noodkaart;
+11. abonnementen, spaardoelen en prijsgeheugen;
+12. restjes-, bezoek-, beslis- en beloningsfuncties;
+13. tijdlijn, bucketlist en klusprojecten;
+14. zoeken, dashboard, prullenbak, back-up en navigatie integreren;
+15. responsive ontwerp en toegankelijkheid;
+16. alle automatische en handmatige controles;
+17. README, implementatie- en testrapport afronden.
 
-1. database, schema, migraties en seeds;
-2. repositories en outbox;
-3. agenda en recurrence;
-4. dashboard en overige domeinen;
-5. back-up/import, instellingen en notificaties;
-6. manifest/service worker;
-7. automatische en visuele tests;
-8. documentatie en eindcontrole op externe afhankelijkheden en onafgemaakte bediening.
+Na iedere implementatiefase worden de bestaande Node-tests opnieuw uitgevoerd. Een fase wordt alleen als geslaagd gedocumenteerd wanneer het bijbehorende commando werkelijk is uitgevoerd.
+
+## 12. Uitvoeringsstatus
+
+De lokale implementatiefasen 1 tot en met 17 zijn afgerond in versie 3.0.0. De IndexedDB-upgrade, repositories, assistentmodules, specifieke workflows, back-up/import, zoekfunctie, prullenbak, versiegeschiedenis, syncuitbreiding, private bestandslaag, service-workerupdate en responsieve navigatie zijn geïntegreerd.
+
+De automatische en handmatige controles staan met echte resultaten in `TEST_REPORT.md`. De nieuwe Supabase-migratie is geleverd en statisch gecontroleerd, maar is niet zonder beheerderstoestemming op productie uitgevoerd. Een live drie-gebruikers-RLS/Storage-test blijft daarom een expliciete uitrolcontrole en geen lokaal behaald testresultaat.
