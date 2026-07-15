@@ -46,6 +46,21 @@ alter table public.family_records add constraint family_records_entity_type_chec
 create index if not exists family_records_family_updated_idx on public.family_records (family_id, server_updated_at);
 create index if not exists family_records_family_entity_idx on public.family_records (family_id, entity_type);
 
+-- Maak wijzigingen direct zichtbaar op andere actieve gezinsapparaten.
+do $realtime$
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    execute 'create publication supabase_realtime';
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'family_records'
+  ) then
+    execute 'alter publication supabase_realtime add table public.family_records';
+  end if;
+end
+$realtime$;
+
 alter table public.families enable row level security;
 alter table public.family_members enable row level security;
 alter table public.family_records enable row level security;

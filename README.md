@@ -97,7 +97,7 @@ Maak daarom regelmatig een back-up.
 3. Maak voor Roy het eerste account en bevestig zo nodig de e-mail.
 4. Log in, kies **Nieuw gezin maken** en bewaar de getoonde uitnodigingscode.
 5. Maak op de tweede telefoon een account voor Demy en kies **Met code aansluiten**.
-6. Vanaf dat moment synchroniseert de app bij openen, terugkeren naar de voorgrond, internetherstel, kort na iedere wijziging en tijdens een actieve minuutcontrole. De geïnstalleerde PWA registreert daarnaast achtergrondtaken waar de browser dit toestaat.
+6. Vanaf dat moment worden wijzigingen via Supabase Realtime direct gemeld aan andere actieve gezinsapparaten. De app synchroniseert daarnaast bij openen, terugkeren naar de voorgrond, internetherstel en kort na iedere wijziging. De geïnstalleerde PWA registreert achtergrondtaken waar de browser dit toestaat.
 
 Bij een bestaand account vraagt **Inloggen** uitsluitend om e-mailadres en wachtwoord. Het naamveld verschijnt alleen bij **Nieuw account maken** en wordt daarna in het account bewaard. Na aanmelden haalt de app de accountnaam en bestaande gezinskoppeling automatisch op.
 
@@ -110,7 +110,7 @@ Bij netwerk- of Supabase-uitval blijft iedere handeling lokaal werken. Wachtende
 - Na een lokale wijziging registreert de PWA een eenmalige Background Sync-herhaalpoging. Zo kan een wijziging alsnog worden verstuurd nadat internet terugkomt, ook wanneer het appvenster niet meer vooraan staat.
 - Op browsers met Periodic Background Sync vraagt de PWA om ongeveer iedere vijftien minuten te mogen controleren. De browser bepaalt zelf het werkelijke moment op basis van installatie, gebruik, verbinding en batterijbesparing.
 - Een ontvangen Web Push-bericht laat de service worker tevens een inhaalsync uitvoeren.
-- Als deze browserfuncties ontbreken of worden tegengehouden, blijft de betrouwbare terugval actief: synchroniseren bij openen, voorgrond, focus, internetherstel en iedere wijziging. Zolang de app zichtbaar is controleert hij bovendien iedere minuut op wijzigingen van andere telefoons.
+- Als Realtime of deze browserfuncties tijdelijk ontbreken of worden tegengehouden, blijft de betrouwbare terugval actief: synchroniseren bij openen, voorgrond, focus, internetherstel en iedere wijziging. Zolang de app zichtbaar is controleert hij zonder live verbinding bovendien iedere tien seconden op wijzigingen van andere telefoons.
 
 Een browser of besturingssysteem geeft websites nooit de garantie dat een volledig gesloten PWA op een exact tijdstip mag draaien. Vooral iOS kan achtergrondwerk sterk beperken. De app bewaart daarom iedere wijziging eerst atomisch in IndexedDB en de outbox; er gaat niets verloren en de eerstvolgende toegestane synchronisatie haalt alles in.
 
@@ -151,9 +151,11 @@ De app gebruikt relatieve paden en werkt daardoor ook onder een projectpad zoals
 
 Voor deze repository is geen buildcommando nodig. Gebruik op Netlify branch `main`, een lege base directory en publish directory `.`. `netlify.toml` legt deze instelling en de beveiligingsheaders vast. Iedere push naar `main` start automatisch een nieuwe Netlify-deployment.
 
-### Supabase eenmalig inrichten
+### Supabase inrichten en bijwerken
 
-Het versiebeheer bevat [supabase/schema.sql](./supabase/schema.sql). Voer dit bestand één keer volledig uit in de SQL Editor van het gekozen Supabase-project. Het script maakt de tabellen, indexen, RLS-policies en uitsluitend voor ingelogde gebruikers beschikbare RPC-functies.
+Het versiebeheer bevat [supabase/schema.sql](./supabase/schema.sql). Voer dit bestand bij de eerste installatie volledig uit in de SQL Editor van het gekozen Supabase-project. Het script maakt de tabellen, indexen, RLS-policies, Realtime-publicatie en uitsluitend voor ingelogde gebruikers beschikbare RPC-functies.
+
+Bestond het project al vóór appversie 2.0.6, voer dan één keer [supabase/realtime-update.sql](./supabase/realtime-update.sql) uit. Daarmee wordt alleen `family_records` veilig aan Supabase Realtime toegevoegd; het script is zonder problemen opnieuw uitvoerbaar.
 
 Stel daarna bij **Authentication → URL Configuration** de Site URL in op `https://thuissamen.netlify.app` en voeg die URL ook toe aan Redirect URLs. Voor lokaal testen kan `http://localhost:8080/**` als extra redirect worden toegevoegd. De website bevat alleen de openbare Supabase publishable key; plaats nooit een secret key of service-role key in HTML of JavaScript.
 

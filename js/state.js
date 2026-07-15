@@ -18,6 +18,8 @@ import { FamilyService } from './services/family-service.js';
 import { SyncService } from './services/sync-service.js';
 import { PushNotificationService } from './services/push-notification-service.js';
 import { BackgroundSyncService } from './services/background-sync-service.js';
+import { RealtimeService } from './services/realtime-service.js';
+import { SUPABASE } from './config.js';
 import { setActiveActor } from './utils/actor.js';
 
 const listeners = new Map();
@@ -36,7 +38,8 @@ export const appState = {
   route: 'home',
   cloud: {
     signedIn: false, user: null, session: null, family: null, familyMembers: [],
-    sync: { status: 'local', lastSyncAt: null, pending: 0, conflicts: 0, error: null }
+    sync: { status: 'local', lastSyncAt: null, pending: 0, conflicts: 0, error: null },
+    realtime: { status: 'off', error: null }
   }
 };
 
@@ -51,6 +54,7 @@ services.auth = new AuthService(supabaseClient, repositories.cloud, (auth) => {
   if (!auth.signedIn && services.family) services.family.clear();
   if (!auth.signedIn) setActiveActor();
   if (services.backgroundSync) (auth.signedIn ? services.backgroundSync.refresh() : services.backgroundSync.disable()).catch(() => {});
+  services.realtime?.refresh().catch(() => {});
   emit('cloud', appState.cloud);
 });
 
@@ -58,6 +62,7 @@ services.family = new FamilyService(supabaseClient, services.auth, ({ context, m
   appState.cloud = { ...appState.cloud, family: context, familyMembers: members };
   setActiveActor(context ? { id: services.auth.user?.id, name: context.display_name } : {});
   services.backgroundSync?.refresh().catch(() => {});
+  services.realtime?.refresh().catch(() => {});
   emit('cloud', appState.cloud);
 });
 
@@ -77,6 +82,17 @@ services.sync = new SyncService({
   }
 });
 services.push = new PushNotificationService(supabaseClient, services.auth, services.family);
+services.realtime = new RealtimeService({
+  url: SUPABASE.url,
+  publishableKey: SUPABASE.publishableKey,
+  auth: services.auth,
+  family: services.family,
+  sync: services.sync,
+  onStatusChange: (realtime) => {
+    appState.cloud = { ...appState.cloud, realtime };
+    emit('cloud', appState.cloud);
+  }
+});
 services.backgroundSync = new BackgroundSyncService({
   auth: services.auth,
   family: services.family,
@@ -102,5 +118,6 @@ export async function initializeCloudState() {
     emit('cloud', appState.cloud);
   }
   await services.sync.start();
+  await services.realtime.start();
   return appState.cloud;
 }

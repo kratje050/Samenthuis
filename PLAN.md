@@ -12,7 +12,7 @@ De app bestaat uit vijf duidelijke lagen:
 2. **Services** – validatie, herhaling, agendaquery's, notificaties en back-up/import.
 3. **Repositories** – één repository per domein met een uniforme API (`getAll`, `getById`, `create`, `update`, `softDelete`, `restore`). Mutaties schrijven record en outbox-item in één IndexedDB-transactie.
 4. **Opslag** – database-opening, schema en migraties. IndexedDB is de directe bron voor de UI; Supabase is na aanmelding de gedeelde gezinsbron.
-5. **Synchronisatie** – de outbox-adapter pusht lokale mutaties via beveiligde RPC's en past centrale records zonder nieuwe outboxmutatie lokaal toe.
+5. **Synchronisatie** – de outbox-adapter pusht lokale mutaties via beveiligde RPC's. Supabase Realtime meldt centrale wijzigingen direct aan andere actieve gezinsapparaten; zij halen de beveiligde records via dezelfde sync-adapter op zonder nieuwe outboxmutatie.
 6. **PWA-achtergrondlaag** – de service worker kan dezelfde outbox zelfstandig verwerken, de korte Supabase-sessie met de refresh-token roteren en centrale records rechtstreeks in de bestaande IndexedDB-stores toepassen. Een Web Lock voorkomt dat venster en service worker tegelijk dezelfde wachtrij verwerken.
 
 ES-modules houden onderdelen los gekoppeld. `state.js` bevat alleen runtime-status en een eventbus. `router.js` beheert hashroutes. De service worker cachet uitsluitend lokale appbestanden en gebruikt een versiegebonden cache met updatecontrole. De PWA-installatieservice vangt de Android-installatieprompt vroeg op en toont op mobiele browsers een eigen toegankelijke keuze; op iPhone geeft dezelfde dialoog de verplichte Safari-stappen.
@@ -101,10 +101,11 @@ De sync-engine verwerkt de bestaande outbox:
 2. wanneer de app terug naar de voorgrond komt;
 3. bij het `online`-event;
 4. kort na iedere lokale wijziging, met debounce en retries;
-5. iedere minuut zolang het appvenster zichtbaar is;
-6. via een eenmalige Background Sync-taak na wachtende wijzigingen;
-7. via Periodic Background Sync met een aangevraagd minimuminterval van vijftien minuten, waar ondersteund;
-8. bij een Web Push-wake-up van de service worker.
+5. direct na een Supabase Realtime-signaal van een ander gezinsapparaat;
+6. iedere tien seconden zolang het appvenster zichtbaar is en de live verbinding niet beschikbaar is;
+7. via een eenmalige Background Sync-taak na wachtende wijzigingen;
+8. via Periodic Background Sync met een aangevraagd minimuminterval van vijftien minuten, waar ondersteund;
+9. bij een Web Push-wake-up van de service worker.
 
 Background Sync blijft afhankelijk van de planning en energieregels van de browser. Periodieke uitvoering is dus niet exact of gegarandeerd, zeker niet op iOS. De atomaire IndexedDB-outbox en de open/voorgrond/online-triggers zijn daarom altijd de bron van betrouwbaarheid en halen gemiste achtergrondmomenten later in.
 

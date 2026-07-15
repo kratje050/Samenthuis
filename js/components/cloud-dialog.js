@@ -133,11 +133,15 @@ function openStatusDialog() {
   const family = appState.cloud.family;
   const members = appState.cloud.familyMembers || [];
   const sync = appState.cloud.sync;
+  const realtime = appState.cloud.realtime || { status: 'off' };
+  const realtimeText = realtime.status === 'connected'
+    ? 'Live gekoppeld: wijzigingen verschijnen direct op actieve gezinsapparaten.'
+    : 'Live verbinding wordt hersteld; de automatische controle blijft actief als terugval.';
   const modal = openModal({
     title: 'Gezinssynchronisatie', onSubmit: null,
-    content: `<div class="sync-summary ${e(sync.status)}"><strong>${e(family.family_name)}</strong><span>${e(statusText())}</span><span>${sync.pending} wachtende wijziging${sync.pending === 1 ? '' : 'en'}</span></div>
+    content: `<div class="sync-summary ${e(sync.status)}"><strong>${e(family.family_name)}</strong><span>${e(statusText())}</span><span>${e(realtimeText)}</span><span>${sync.pending} wachtende wijziging${sync.pending === 1 ? '' : 'en'}</span></div>
       <h3>Gezinsleden met een account</h3><ul class="item-list">${members.map((member) => `<li class="list-item compact"><strong>${e(member.display_name)}</strong><span class="badge">${member.role === 'owner' ? 'Beheerder' : 'Gezinslid'}</span></li>`).join('')}</ul>
-      <p class="small muted">De app blijft offline bruikbaar. Wachtende wijzigingen worden bij internetherstel verwerkt. Als de browser dit toestaat, synchroniseert de geïnstalleerde PWA ook zelfstandig op de achtergrond; anders haalt hij alles in bij openen of voorgrond.</p>`
+      <p class="small muted">De app blijft offline bruikbaar. Actieve telefoons ontvangen wijzigingen live. Wachtende wijzigingen worden bij internetherstel verwerkt. Als de browser dit toestaat, synchroniseert de geïnstalleerde PWA ook zelfstandig op de achtergrond; anders haalt hij alles in bij openen of voorgrond.</p>`
   });
   const footer = modal.querySelector('.modal-footer');
   footer.innerHTML = `<button class="button ghost" type="button" id="cloud-sign-out">Uitloggen</button>${family.role === 'owner' ? '<button class="button secondary" type="button" id="new-invite">Nieuwe uitnodigingscode</button>' : ''}<button class="button" type="button" id="sync-now">Nu synchroniseren</button>`;
@@ -172,5 +176,5 @@ export function cloudStatusLabel() {
   if (status === 'syncing') return 'Synchroniseren';
   if (status === 'error') return 'Synchronisatieprobleem';
   if (!navigator.onLine) return 'Offline, wijzigingen wachten';
-  return 'Cloudsync actief';
+  return appState.cloud.realtime?.status === 'connected' ? 'Live cloudsync actief' : 'Cloudsync actief';
 }

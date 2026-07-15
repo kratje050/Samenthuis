@@ -34,6 +34,8 @@ export class SyncService {
     this.running = null;
     this.timer = null;
     this.pollTimer = null;
+    this.realtimeConnected = false;
+    this.queuedReason = null;
     this.started = false;
     this.state = { status: 'local', lastSyncAt: null, pending: 0, conflicts: 0, error: null };
     this.repositoryByEntity = {
@@ -50,21 +52,31 @@ export class SyncService {
     const saved = await this.cloudRepository.get('sync-state');
     if (saved) this.#setState({ ...this.state, ...saved, status: this.family.context ? 'idle' : 'local', error: null });
     addEventListener('online', () => this.schedule('internet hersteld', 200));
-    addEventListener('samen-thuis-local-change', () => this.schedule('lokale wijziging', 900));
+    addEventListener('samen-thuis-local-change', () => this.schedule('lokale wijziging', 120));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.schedule('app op voorgrond', 200); });
     addEventListener('focus', () => this.schedule('app actief', 200));
     addEventListener('pageshow', () => this.schedule('pagina hervat', 200));
     this.pollTimer = setInterval(() => {
-      if (document.visibilityState === 'visible') this.schedule('periodieke controle', 100);
-    }, 60 * 1000);
+      if (document.visibilityState === 'visible' && !this.realtimeConnected) this.schedule('controle zonder liveverbinding', 100);
+    }, 10 * 1000);
     if (this.family.context) this.schedule('app geopend', 100);
     await this.#updatePending();
   }
 
   schedule(reason = 'automatisch', delay = 800) {
-    clearTimeout(this.timer);
     if (!this.auth.isSignedIn || !this.family.context || !navigator.onLine) return;
+    if (this.running) {
+      this.queuedReason = reason;
+      return;
+    }
+    clearTimeout(this.timer);
     this.timer = setTimeout(() => this.sync({ reason }).catch(() => {}), delay);
+  }
+
+  setRealtimeConnected(connected) {
+    const changed = this.realtimeConnected !== Boolean(connected);
+    this.realtimeConnected = Boolean(connected);
+    if (changed && !this.realtimeConnected && document.visibilityState === 'visible') this.schedule('terugval zonder liveverbinding', 200);
   }
 
   async sync({ reason = 'handmatig', throwOnError = false } = {}) {
@@ -79,7 +91,14 @@ export class SyncService {
       this.#setState({ status: 'error', error: error.message });
       if (throwOnError) throw error;
       return { ok: false, error };
-    }).finally(() => { this.running = null; });
+    }).finally(() => {
+      this.running = null;
+      if (this.queuedReason) {
+        const queuedReason = this.queuedReason;
+        this.queuedReason = null;
+        this.schedule(queuedReason, 40);
+      }
+    });
     return this.running;
   }
 
