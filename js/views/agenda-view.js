@@ -12,10 +12,18 @@ import { validateAppointment } from '../services/validation-service.js';
 import { downloadIcs, icsToAppointments } from '../services/ics-service.js';
 import { arrayValue, bindAction, boolValue, categoryColor, consumeHashAction, e, emptyState, field, handleError, numberValue, textArea, value } from './view-helpers.js';
 import { icon } from '../utils/icons.js';
+import { openBirthdayDialog } from '../components/birthday-dialog.js';
 
 let mode = 'today';
 let cursor = new Date();
 let filters = { member: '', category: '', query: '' };
+
+function consumeBirthdayAction() {
+  const [base, query = ''] = location.hash.split('?');
+  const matches = new URLSearchParams(query).get('birthday') === '1';
+  if (matches) history.replaceState(null, '', base);
+  return matches;
+}
 
 function appointmentForm(record = {}) {
   const settings = appState.settings;
@@ -65,6 +73,10 @@ function openAppointment(record = null, copy = false) {
         reminder: value(data, 'reminder', 'none'), reminderCustom: numberValue(data, 'reminderCustom', 0), notes: value(data, 'notes'),
         completed: editing ? Boolean(record.completed) : false
       };
+      if (appointment.category === 'Verjaardag') {
+        appointment.birthdayName = appointment.title.replace(/\s+is jarig$/i, '');
+        appointment.birthYear = Number(appointment.date.slice(0, 4));
+      }
       validateAppointment(appointment);
       if (editing) await repositories.appointments.update(record.id, appointment);
       else await repositories.appointments.create(appointment);
@@ -122,8 +134,9 @@ export const agendaView = {
   async render() {
     const settings = appState.settings;
     return `<section class="page-stack agenda-page">
-      <div class="page-header agenda-desktop-actions"><p class="muted">Eén gezamenlijke gezinsagenda, altijd offline beschikbaar.</p><div class="page-actions"><button class="button secondary" id="import-ics">Importeren</button><button class="button secondary" id="export-ics">Exporteren</button><button class="button" id="new-appointment">${icon('plus')} Nieuwe afspraak</button><input class="sr-only" id="ics-file" type="file" accept="text/calendar,.ics"></div></div>
+      <div class="page-header agenda-desktop-actions"><p class="muted">Eén gezamenlijke gezinsagenda, altijd offline beschikbaar.</p><div class="page-actions"><button class="button secondary" id="import-ics">Importeren</button><button class="button secondary" id="export-ics">Exporteren</button><button class="button secondary" type="button" data-add-birthday>${icon('birthday')} Verjaardag toevoegen</button><button class="button" id="new-appointment">${icon('plus')} Nieuwe afspraak</button><input class="sr-only" id="ics-file" type="file" accept="text/calendar,.ics"></div></div>
       <div class="segmented agenda-modes" aria-label="Agendaweergave">${[['today','Vandaag'],['week','Week'],['month','Maand'],['upcoming','Komend'],['day','Dag'],['list','Lijst'],['deleted','Prullenbak']].map(([key,label]) => `<button type="button" data-agenda-mode="${key}">${label}</button>`).join('')}</div>
+      <button class="button secondary agenda-birthday-action" type="button" data-add-birthday>${icon('birthday')} Verjaardag toevoegen</button>
       <details class="filter-panel"><summary>${icon('search')} Zoeken en filteren</summary><div class="toolbar"><div class="field grow"><label for="agenda-search">Zoeken</label><input id="agenda-search" type="search" placeholder="Titel, locatie, categorie of notitie" value="${e(filters.query)}"></div>
         ${field('member-filter','Gezinslid',{ 'member-filter': filters.member },{ options:[{value:'',label:'Alle gezinsleden'},...settings.members.map((member)=>({value:member.id,label:member.name}))] })}
         ${field('category-filter','Categorie',{ 'category-filter': filters.category },{ options:[{value:'',label:'Alle categorieën'},...settings.categories.appointments] })}</div></details>
@@ -134,6 +147,7 @@ export const agendaView = {
   },
   async mount(root) {
     root.querySelector('#new-appointment').addEventListener('click', () => openAppointment());
+    bindAction(root, '[data-add-birthday]', () => openBirthdayDialog({ onSaved: refresh }));
     root.querySelector('#export-ics').addEventListener('click', async () => { const records = await repositories.appointments.getAll(); downloadIcs(records); showToast(`${records.length} afspraak${records.length===1?'':'en'} geëxporteerd.`); });
     root.querySelector('#import-ics').addEventListener('click', () => root.querySelector('#ics-file').click());
     root.querySelector('#ics-file').addEventListener('change', async (event) => {
@@ -168,5 +182,6 @@ export const agendaView = {
     bindAction(root, '[data-restore-appointment]', async (button) => { await repositories.appointments.restore(button.dataset.restoreAppointment); showToast('Afspraak hersteld.'); await refresh(); });
     await refresh().catch(handleError);
     if (consumeHashAction('1')) openAppointment();
+    else if (consumeBirthdayAction()) openBirthdayDialog({ onSaved: refresh });
   }
 };

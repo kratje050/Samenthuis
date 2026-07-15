@@ -161,6 +161,11 @@ hr { width: 100%; margin: 1rem 0; border: 0; border-top: 1px solid var(--border)
 .dashboard-secondary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .dashboard-secondary-grid h2 { font-size: .8rem; }
 .dashboard-secondary-grid p { margin-bottom: .35rem; }
+.birthday-line { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.birthday-line span { color: var(--muted); white-space: nowrap; }
+.birthday-add-link { display: inline-flex; min-height: 38px; align-items: center; gap: .35rem; margin-top: .35rem; padding: .3rem 0; border: 0; background: transparent; color: var(--rose-deep); font-size: .7rem; font-weight: 650; text-align: left; }
+.birthday-add-link .ui-icon { width: 16px; height: 16px; }
+.form-hint { margin: 0; color: var(--muted); font-size: .72rem; }
 .dashboard-activity { grid-column: 1 / -1; }
 .dashboard-date-mobile { order: -1; margin: -.15rem 0 0; color: var(--muted); font-size: .72rem; }
 

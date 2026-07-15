@@ -1,6 +1,6 @@
 importScripts('./js/workers/background-sync-worker.js');
 
-const CACHE_VERSION = 'samen-thuis-v2.0.3';
+const CACHE_VERSION = 'samen-thuis-v2.0.5';
 const APP_SHELL = [
   './', './index.html', './manifest.json',
   './assets/icons/icon-180.png', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/icon-192.svg', './assets/icons/icon-512.svg', './assets/icons/ui-icons.svg', './assets/images/home-corner.svg',
@@ -11,7 +11,7 @@ const APP_SHELL = [
   './js/services/agenda-service.js', './js/services/recurrence-service.js', './js/services/reminder-service.js', './js/services/backup-service.js', './js/services/import-service.js', './js/services/validation-service.js', './js/services/notification-service.js', './js/services/data-management-service.js', './js/services/meal-service.js', './js/services/inventory-service.js', './js/services/expense-service.js', './js/services/search-service.js', './js/services/trash-service.js', './js/services/supabase-client.js', './js/services/auth-service.js', './js/services/family-service.js', './js/services/sync-service.js', './js/services/background-sync-service.js', './js/services/pwa-install-service.js', './js/services/ics-service.js', './js/services/template-service.js', './js/services/push-notification-service.js',
   './js/workers/background-sync-worker.js',
   './js/views/view-helpers.js', './js/views/dashboard-view.js', './js/views/agenda-view.js', './js/views/shopping-view.js', './js/views/tasks-view.js', './js/views/meals-view.js', './js/views/inventory-view.js', './js/views/expenses-view.js', './js/views/pets-view.js', './js/views/outings-view.js', './js/views/settings-view.js', './js/views/more-view.js', './js/views/activity-view.js', './js/views/templates-view.js',
-  './js/components/modal.js', './js/components/toast.js', './js/components/date-picker.js', './js/components/time-picker.js', './js/components/calendar-month.js', './js/components/calendar-week.js', './js/components/calendar-day.js', './js/components/confirm-dialog.js', './js/components/global-search.js', './js/components/quick-add.js', './js/components/cloud-dialog.js',
+  './js/components/modal.js', './js/components/toast.js', './js/components/date-picker.js', './js/components/time-picker.js', './js/components/calendar-month.js', './js/components/calendar-week.js', './js/components/calendar-day.js', './js/components/confirm-dialog.js', './js/components/global-search.js', './js/components/quick-add.js', './js/components/cloud-dialog.js', './js/components/birthday-dialog.js',
   './js/utils/uuid.js', './js/utils/dates.js', './js/utils/formatting.js', './js/utils/device.js', './js/utils/sanitization.js', './js/utils/actor.js', './js/utils/account.js', './js/utils/icons.js'
 ];
 

@@ -3,6 +3,7 @@ import { icon } from '../utils/icons.js';
 
 const actions = [
   ['agenda?new=1', 'calendar', 'Nieuwe afspraak', 'Plan iets voor één of meer gezinsleden.'],
+  ['agenda?birthday=1', 'birthday', 'Verjaardag toevoegen', 'Laat een verjaardag automatisch ieder jaar terugkomen.'],
   ['shopping?new=1', 'cart', 'Boodschap toevoegen', 'Zet direct een product op de lijst.'],
   ['tasks?new=1', 'tasks', 'Nieuwe taak', 'Verdeel een huishoudelijke taak.'],
   ['meals?new=1', 'meals', 'Maaltijd plannen', 'Vul vandaag of een andere dag in.'],

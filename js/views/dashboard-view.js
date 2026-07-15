@@ -6,6 +6,7 @@ import { downloadBackup, getBackupStatus } from '../services/backup-service.js';
 import { accountDisplayName, personalizedGreeting } from '../utils/account.js';
 import { icon } from '../utils/icons.js';
 import { showToast } from '../components/toast.js';
+import { openBirthdayDialog } from '../components/birthday-dialog.js';
 
 const mealNames = { breakfast: 'Ontbijt', lunch: 'Lunch', dinner: 'Avondeten', snack: 'Tussendoortje' };
 const expenseColors = ['#f28db2', '#a99acb', '#dbc19c', '#78b4ad', '#efb982', '#b0a093'];
@@ -31,6 +32,13 @@ function cardLink(route, label) {
 
 function emptyLine(label) {
   return `<p class="dashboard-empty">${e(label)}</p>`;
+}
+
+function birthdayLine(item) {
+  const name = item.birthdayName || item.title;
+  const age = item.birthYear ? Number(item.occurrenceDate.slice(0, 4)) - Number(item.birthYear) : null;
+  const ageLabel = Number.isInteger(age) && age >= 0 ? ` wordt ${age}` : '';
+  return `<p class="small birthday-line"><strong>${e(name)}${e(ageLabel)}</strong><span>${e(formatDate(item.occurrenceDate, { day: 'numeric', month: 'short' }))}</span></p>`;
 }
 
 function expenseBreakdown(expenses, month) {
@@ -142,7 +150,7 @@ export const dashboardView = {
 
       <div class="dashboard-secondary-grid">
         <article class="card compact"><h2>Eerstvolgende afspraak</h2>${next ? `<strong>${e(next.title)}</strong><p class="small muted">${e(formatDate(next.occurrenceDate))}${next.allDay ? '' : ` · ${e(next.startTime)}`}</p>` : '<p class="muted small">Geen komende afspraak.</p>'}</article>
-        <article class="card compact"><h2>Aankomende verjaardagen</h2>${birthdays.length ? birthdays.map((item) => `<p class="small"><strong>${e(item.title)}</strong> · ${e(formatDate(item.occurrenceDate, { day: 'numeric', month: 'short' }))}</p>`).join('') : '<p class="muted small">Geen verjaardagen in de komende 30 dagen.</p>'}</article>
+        <article class="card compact birthday-card"><h2>Aankomende verjaardagen</h2>${birthdays.length ? birthdays.map(birthdayLine).join('') : '<p class="muted small">Geen verjaardagen in de komende 30 dagen.</p>'}<button class="birthday-add-link" type="button" data-add-birthday>${icon('birthday')} Verjaardag toevoegen</button></article>
         <article class="card compact"><h2>Huisdierherinneringen</h2>${petAlerts.length ? petAlerts.slice(0, 3).map((alert) => `<p class="small">${e(alert)}</p>`).join('') : '<p class="muted small">Geen dierenarts- of medicatiemeldingen.</p>'}</article>
         <article class="card compact"><h2>Opslag en sync</h2><p class="small"><strong>${e(storage)}</strong></p><p class="small muted">${outbox.length} wijziging${outbox.length === 1 ? '' : 'en'} in de lokale outbox.</p><a href="#settings">Instellingen openen</a></article>
         <article class="card compact dashboard-activity"><h2>Recente gezinsactiviteit</h2>${activity.length ? activity.slice(0, 3).map((item) => `<p class="small"><strong>${e(item.actorName || 'Een gezinslid')}</strong> <span class="muted">heeft ${e(item.title)} aangepast.</span></p>`).join('') : '<p class="muted small">Nieuwe wijzigingen verschijnen hier.</p>'}</article>
@@ -152,10 +160,15 @@ export const dashboardView = {
   },
 
   async mount(root) {
+    const rerender = async () => {
+      root.innerHTML = await dashboardView.render();
+      await dashboardView.mount(root);
+    };
     root.querySelector('#dashboard-backup')?.addEventListener('click', async () => {
       await downloadBackup();
       showToast('Back-up is gedownload.', 'success');
     });
     root.querySelector('[data-open-cloud]')?.addEventListener('click', () => document.querySelector('#cloud-status')?.click());
+    root.querySelector('[data-add-birthday]')?.addEventListener('click', () => openBirthdayDialog({ onSaved: rerender }));
   }
 };

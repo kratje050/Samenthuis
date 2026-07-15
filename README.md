@@ -8,6 +8,7 @@ Versie 2.0 is offline-first en heeft het nieuwe **Gezin & Co**-ontwerp: een rust
 
 - gezamenlijke gezinsagenda met dag-, week-, maand-, vandaag-, komende- en lijstweergave;
 - herhalende afspraken, lokale en optionele Web Push-herinneringen, zoeken, filters, kleuren, kopiëren, afronden, soft delete en herstel;
+- verjaardagen met geboortedatum, optionele koppeling aan een gezinslid en herinnering; ze verschijnen automatisch ieder jaar in de agenda en op het dashboard;
 - agenda importeren en exporteren als standaard `.ics`-bestand voor onder meer Google Agenda, Apple Agenda en Outlook;
 - boodschappenlijst met categorieën, winkels, sortering, afvinken en bulkverwijdering;
 - herhalende huishoudelijke taken met historie en automatische volgende taak;
