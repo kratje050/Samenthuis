@@ -1,8 +1,14 @@
 import { toDateKey } from '../utils/dates.js';
+import { calculateRoutinePoints } from './points-service.js';
+
+export function routineIsActive(routine = {}) {
+  const starterMuted = routine.reminderDisabled && routine.starterKind === 'family-routine' && routine.status === 'archived';
+  return !routine.paused && (routine.status === 'active' || starterMuted);
+}
 
 export function routineAppliesToday(routine, date = new Date()) {
   const dateKey = toDateKey(date);
-  return routine.status === 'active' && !routine.paused && (!routine.startDate || routine.startDate <= dateKey) && (!routine.endDate || routine.endDate >= dateKey) && (routine.days || []).includes(String(date.getDay()));
+  return routineIsActive(routine) && (!routine.startDate || routine.startDate <= dateKey) && (!routine.endDate || routine.endDate >= dateKey) && (routine.days || []).includes(String(date.getDay()));
 }
 
 export function routineProgress(routine, dateKey = toDateKey()) {
@@ -15,7 +21,13 @@ export async function toggleRoutineItem(repository, routine, itemId, dateKey = t
   const current = new Set(routine.dailyProgress?.[dateKey] || []);
   current.has(itemId) ? current.delete(itemId) : current.add(itemId);
   const dailyProgress = { ...(routine.dailyProgress || {}), [dateKey]: [...current] };
-  const history = [...(routine.completionHistory || [])];
-  if ((routine.items || []).length && current.size === routine.items.length && !history.some((entry) => entry.date === dateKey)) history.push({ date: dateKey, completedAt: new Date().toISOString() });
+  const complete = Boolean((routine.items || []).length && current.size === routine.items.length);
+  const history = (routine.completionHistory || []).filter((entry) => entry.date !== dateKey);
+  if (complete) history.push({
+    date: dateKey,
+    completedAt: new Date().toISOString(),
+    memberId: routine.memberId || '',
+    points: Number(routine.pointValue || calculateRoutinePoints(routine).points)
+  });
   return repository.update(routine.id, { dailyProgress, completionHistory: history.slice(-90) });
 }

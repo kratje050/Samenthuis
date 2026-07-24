@@ -170,6 +170,6 @@ Na iedere implementatiefase worden de bestaande Node-tests opnieuw uitgevoerd. E
 
 ## 12. Uitvoeringsstatus
 
-De lokale implementatiefasen 1 tot en met 17 zijn afgerond. Versie 3.0.1 voegt een volledige Web Push-keten toe: automatische apparaatinschrijving na gezinskoppeling, een toestemmingspopup, een echte testmelding, servergestuurde herinneringen voor alle belangrijke onderdelen, een minuutcron, bezorgdeduplicatie en een normale Android/iPhone/PWA-notificatie vanuit de service worker.
+De lokale implementatiefasen 1 tot en met 17 zijn afgerond. Versie 3.1.0 voegt boven op de automatische punten een uitgebreide, synchroniseerbare gezinsbibliotheek toe. De eerste start voert 79 terugkerende taken, 12 taaksets, 8 routines en 36 automatische uitdagingen idempotent in. Afgeronde taken werken passende uitdagingen bij; heropenen boekt die voortgang terug en periodieke uitdagingen starten gecontroleerd opnieuw.
 
 De automatische en handmatige controles staan met echte resultaten in `TEST_REPORT.md`. Beide Supabase-migraties en de vernieuwde Edge Function zijn op 15 juli 2026 op het gekoppelde productieproject toegepast. De minuutcron is actief en meerdere serverruns gaven HTTP 200. Een echte apparaatmelding moet per Android/iPhone nog via de knop **Testmelding sturen** worden bevestigd, omdat de gecontroleerde desktopbrowser geen mobiele pushprompt heeft geaccepteerd.

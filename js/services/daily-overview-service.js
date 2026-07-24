@@ -1,4 +1,5 @@
 import { addDays, fromDateKey, toDateKey } from '../utils/dates.js';
+import { routineIsActive } from './routine-service.js';
 
 function daysUntil(date, today = toDateKey()) {
   if (!date) return Infinity;
@@ -52,7 +53,7 @@ export async function buildDailyOverview({ repositories, agenda, settings, now =
     waste: waste.filter((item) => item.date === today || (daysUntil(item.date, today) === 1 && !item.putOutside)),
     inventory: lowOrExpiring,
     notices: notices.filter((item) => item.status !== 'archived' && (!item.expiryDate || item.expiryDate >= today) && (item.important || item.pinned)),
-    routines: routines.filter((item) => !item.paused && item.status === 'active' && (item.days || []).includes(weekday) && (!activeRoutineIds.size || activeRoutineIds.has(item.id))),
+    routines: routines.filter((item) => routineIsActive(item) && (item.days || []).includes(weekday) && (!activeRoutineIds.size || activeRoutineIds.has(item.id))),
     subscriptions: subscriptions.filter((item) => item.status === 'active' && (daysUntil(item.contractEndDate, today) <= 30 || daysUntil(item.trialEndDate, today) <= 7 || Number(item.debitDay) === now.getDate())),
     loans: loans.filter((item) => item.status !== 'returned' && daysUntil(item.expectedReturnDate, today) <= 0)
   };

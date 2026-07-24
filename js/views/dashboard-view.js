@@ -7,13 +7,16 @@ import { accountDisplayName, personalizedGreeting } from '../utils/account.js';
 import { icon } from '../utils/icons.js';
 import { showToast } from '../components/toast.js';
 import { openBirthdayDialog } from '../components/birthday-dialog.js';
+import { calculateTaskPoints, summarizeWeeklyPoints } from '../services/points-service.js';
+import { routineAppliesToday } from '../services/routine-service.js';
 
 const mealNames = { breakfast: 'Ontbijt', lunch: 'Lunch', dinner: 'Avondeten', snack: 'Tussendoortje' };
 const expenseColors = ['#f28db2', '#a99acb', '#dbc19c', '#78b4ad', '#efb982', '#b0a093'];
 const dashboardCardAliases = new Map([
   ['afspraken', 'appointments'], ['agenda', 'appointments'], ['taken', 'tasks'], ['boodschappen', 'shopping'],
   ['maaltijden', 'meals'], ['voorraad', 'inventory'], ['uitgaven', 'expenses'], ['verjaardagen', 'birthdays'],
-  ['huisdieren', 'pets'], ['opslag', 'storage'], ['activiteit', 'activity'], ['prikbord', 'notices']
+  ['huisdieren', 'pets'], ['opslag', 'storage'], ['activiteit', 'activity'], ['prikbord', 'notices'],
+  ['punten', 'points'], ['wedstrijd', 'points'], ['score', 'points']
 ]);
 
 function dashboardModeKeys(values = []) {
@@ -118,8 +121,9 @@ export const dashboardView = {
     const overdueMaintenance = maintenance.filter((item) => item.nextDate && item.nextDate < today && !['done','archived'].includes(item.status));
     const overdueLoans = loans.filter((item) => item.expectedReturnDate && item.expectedReturnDate <= today && item.status !== 'returned');
     const todayWaste = waste.filter((item) => item.date === today && !item.broughtInside);
-    const todayRoutines = routines.filter((item) => item.status === 'active' && !item.paused && (item.days || []).includes(String(now.getDay())));
+    const todayRoutines = routines.filter((item) => routineAppliesToday(item, now));
     const dueSubscriptions = subscriptions.filter((item) => item.status === 'active' && (Number(item.debitDay) === now.getDate() || item.trialEndDate === today || item.contractEndDate === today));
+    const weeklyPoints = summarizeWeeklyPoints({ tasks, routines, members: appState.settings.members || [], now });
     const activeMode = familyModes.find((item) => item.active);
     const modeRoutineIds = new Set(activeMode?.activeRoutineIds || []);
     const visibleRoutines = todayRoutines.filter((item) => !modeRoutineIds.size || modeRoutineIds.has(item.id));
@@ -161,7 +165,7 @@ export const dashboardView = {
 
         <article class="dashboard-card" ${dashboardCardAllowed(activeMode, 'tasks') ? '' : 'hidden'}>
           ${cardTitle('tasks', 'Taken')}
-          <div class="dashboard-rows">${dashboardTasks.length ? dashboardTasks.slice(0, 3).map((item) => `<div class="dashboard-row dashboard-check-row"><span class="fake-check" aria-hidden="true"></span><span><strong>${e(item.title)}</strong><small>${e((appState.settings.members || []).find((member) => member.id === item.assignedTo)?.name || item.category || 'Gezin')}</small></span><em class="priority-pill ${e(item.priority || 'normal')}">${e(({ low: 'Laag', normal: 'Normaal', high: 'Hoog', urgent: 'Dringend' })[item.priority] || 'Normaal')}</em></div>`).join('') : emptyLine('Geen openstaande taken.')}</div>
+          <div class="dashboard-rows">${dashboardTasks.length ? dashboardTasks.slice(0, 3).map((item) => `<div class="dashboard-row dashboard-check-row"><span class="fake-check" aria-hidden="true"></span><span><strong>${e(item.title)}</strong><small>${e((appState.settings.members || []).find((member) => member.id === item.assignedTo)?.name || item.category || 'Gezin')}</small></span><em class="priority-pill ${e(item.priority || 'normal')}">${appState.settings.rewardsEnabled !== false ? `${e(item.rewardPoints || calculateTaskPoints(item).points)} pt · ` : ''}${e(({ low: 'Laag', normal: 'Normaal', high: 'Hoog', urgent: 'Dringend' })[item.priority] || 'Normaal')}</em></div>`).join('') : emptyLine('Geen openstaande taken.')}</div>
           ${cardLink('tasks', 'Naar taken')}
         </article>
 
@@ -196,6 +200,7 @@ export const dashboardView = {
       </article>
 
       <div class="dashboard-secondary-grid">
+        ${appState.settings.rewardsEnabled !== false ? `<article class="card compact points-race-card" ${dashboardCardAllowed(activeMode, 'points') ? '' : 'hidden'}><div class="card-header"><h2>Puntenstrijd deze week</h2><strong>${weeklyPoints.teamPoints} pt samen</strong></div>${weeklyPoints.ranking.length ? `<div class="points-ranking">${weeklyPoints.ranking.slice(0, 4).map((entry, index) => `<div class="points-ranking-row"><span class="tiny-avatar" style="--member-color:${e(entry.color || '#8f5f4a')}">${e(String(entry.icon || entry.name).slice(0, 1))}</span><span><strong>${index === 0 && entry.points ? '🏆 ' : ''}${e(entry.name)}</strong><small>${entry.completed} afgerond</small></span><em>${entry.points} pt</em></div>`).join('')}</div>` : '<p class="muted small">Rond een taak of routine af om de wedstrijd te starten.</p>'}${weeklyPoints.unassignedPoints ? `<p class="small muted">${weeklyPoints.unassignedPoints} punten zijn nog niet aan een gezinslid gekoppeld.</p>` : ''}<a href="#tasks">Punten verdienen</a></article>` : ''}
         <article class="card compact"><h2>Eerstvolgende afspraak</h2>${next ? `<strong>${e(next.title)}</strong><p class="small muted">${e(formatDate(next.occurrenceDate))}${next.allDay ? '' : ` · ${e(next.startTime)}`}</p>` : '<p class="muted small">Geen komende afspraak.</p>'}</article>
         <article class="card compact birthday-card" ${dashboardCardAllowed(activeMode, 'birthdays') ? '' : 'hidden'}><h2>Aankomende verjaardagen</h2>${birthdays.length ? birthdays.map(birthdayLine).join('') : '<p class="muted small">Geen verjaardagen in de komende 30 dagen.</p>'}<button class="birthday-add-link" type="button" data-add-birthday>${icon('birthday')} Verjaardag toevoegen</button></article>
         <article class="card compact" ${dashboardCardAllowed(activeMode, 'pets') ? '' : 'hidden'}><h2>Huisdierherinneringen</h2>${petAlerts.length ? petAlerts.slice(0, 3).map((alert) => `<p class="small">${e(alert)}</p>`).join('') : '<p class="muted small">Geen dierenarts- of medicatiemeldingen.</p>'}</article>

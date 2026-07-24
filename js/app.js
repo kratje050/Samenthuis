@@ -10,6 +10,7 @@ import { initializePwaInstallOffer } from './services/pwa-install-service.js';
 import { initializeNotificationOffer } from './services/notification-offer-service.js';
 import { accountDisplayName } from './utils/account.js';
 import { TrashService } from './services/trash-service.js';
+import { ensureStarterFamilyContent } from './services/family-content-service.js';
 
 function applyTheme(theme = 'system') {
   const resolved = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
@@ -127,6 +128,8 @@ async function start() {
     await initializeState();
     await new TrashService(repositories, services.files).purgeExpired(appState.settings.trashRetentionDays || 0);
     await initializeCloudState();
+    const starterContent = await ensureStarterFamilyContent(repositories, appState.settings);
+    if (starterContent.settings) appState.settings = starterContent.settings;
     applyTheme(appState.settings.theme);
     initializeConnectivity(); initializeThemeToggle(); initializeGlobalActions(); initializeCloudUi();
     on('settings', renderSidebarMembers);

@@ -48,6 +48,6 @@ export async function addRewardProgress(repository, record, amount = 1, approved
   return repository.update(record.id, {
     progress,
     approvedBy: approvedBy || record.approvedBy || '',
-    status: achieved ? 'achieved' : record.status
+    status: achieved ? 'achieved' : record.status === 'achieved' ? 'active' : record.status
   });
 }

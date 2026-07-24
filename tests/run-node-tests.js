@@ -11,8 +11,10 @@ import { accountTests } from './account-tests.js';
 import { realtimeTests } from './realtime-tests.js';
 import { assistantTests } from './assistant-tests.js';
 import { staticTests } from './static-tests.js';
+import { pointsTests } from './points-tests.js';
+import { familyContentTests } from './family-content-tests.js';
 
 let passed=0,failed=0;
-for(const [name,test] of [...recurrenceTests,...calendarTests,...backupTests,...convenienceTests,...cloudTests,...icsTests,...pushTests,...backgroundSyncTests,...pwaInstallTests,...accountTests,...realtimeTests,...assistantTests,...staticTests]){try{await test();console.log(`✓ ${name}`);passed++}catch(error){console.error(`✗ ${name}\n  ${error.message}`);failed++}}
+for(const [name,test] of [...recurrenceTests,...calendarTests,...backupTests,...convenienceTests,...cloudTests,...icsTests,...pushTests,...backgroundSyncTests,...pwaInstallTests,...accountTests,...realtimeTests,...assistantTests,...pointsTests,...familyContentTests,...staticTests]){try{await test();console.log(`✓ ${name}`);passed++}catch(error){console.error(`✗ ${name}\n  ${error.message}`);failed++}}
 console.log(`\n${passed} geslaagd, ${failed} mislukt`);
 if(failed)process.exitCode=1;

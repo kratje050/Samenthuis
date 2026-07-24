@@ -1,6 +1,6 @@
-# Implementatierapport Samen Thuis 3.0.1
+# Implementatierapport Samen Thuis 3.1.0
 
-Datum: 15 juli 2026
+Datum: 24 juli 2026
 
 ## Resultaat
 
@@ -13,6 +13,13 @@ De bestaande PWA is uitgebreid zonder het bestaande authenticatie-, gezins-, Ind
 - zoeken, type- en gezinslidfilters, kopiëren, archiveren, soft delete, herstel en conversies naar bestaande onderdelen;
 - gekoppelde workflows voor bezoekboodschappen/-taken, klusmateriaal/-taken, apparatenonderhoud en bucketlist naar uitje of gezinsmoment;
 - herhalende afvalmomenten, onderhoudsgeschiedenis, routinedaghistorie, spaardoeltransacties, prijsstatistiek en abonnementtotalen;
+- automatische taakpunten op basis van geschatte tijd, lokale zwaarteherkenning en prioriteit, plus automatisch berekende routinepunten;
+- een wekelijkse puntenstrijd voor gezinsleden op het dashboard, waarbij heropende taken weer van de actuele weekscore worden afgetrokken;
+- een idempotente gezinsbibliotheek met 79 terugkerende taken, 12 taaksets met 126 ideeën, 8 routines en 36 uitdagingen;
+- stabiele UUID’s voor alle starterrecords, zodat meerdere gezinsapparaten dezelfde starters synchroniseren zonder dubbele records;
+- automatische uitdagingregels voor taakpunten, aantallen, categorieën, prioriteit, snelle klusjes en lokale trefwoorden;
+- automatische terugboeking bij heropenen en wekelijkse of maandelijkse vernieuwing met behoud van maximaal twaalf vorige cyclussamenvattingen;
+- onderdrukte meldingen voor uitsluitend de automatisch meegeleverde starters, zodat de eerste installatie geen meldingenstorm veroorzaakt;
 - in-app- en echte achtergrondmeldingen voor afspraken, verjaardagen, taken, medicatie, dierenarts, voorraad, houdbaarheid, uitjes, afval, lenen, onderhoud, garanties, abonnementen, routines, oppas, meeneemlijsten en andere belangrijke gezinsmomenten;
 - automatische pushinschrijving wanneer meldingen al waren toegestaan en later een gezinsaccount wordt gekoppeld;
 - een vrijwillige meldingenpopup, duidelijke iPhone-installatievoorwaarden en een servergestuurde testmelding;

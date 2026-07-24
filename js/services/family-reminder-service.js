@@ -17,7 +17,7 @@ export async function collectFamilyReminders(repositories, now = new Date()) {
     all(modules.routine), all(modules.bucket_list), all(modules.babysitting), all(modules.packing)
   ]);
   const alerts = [];
-  tasks.filter((item) => !['done','completed','archived'].includes(item.status)).forEach((item) => addAlert(alerts, item, 'task', at(item.date, item.time || '09:00'), `Taak: ${item.title}`, item.priority ? `Prioriteit: ${item.priority}` : 'Deze taak staat gepland', '#tasks'));
+  tasks.filter((item) => !item.reminderDisabled && !['done','completed','archived'].includes(item.status)).forEach((item) => addAlert(alerts, item, 'task', at(item.date, item.time || '09:00'), `Taak: ${item.title}`, item.priority ? `Prioriteit: ${item.priority}` : 'Deze taak staat gepland', '#tasks'));
   pets.forEach((item) => {
     if (item.medication && item.medicationTime) addAlert(alerts, item, 'pet-medication', at(today, item.medicationTime), `Medicatie voor ${item.name}`, `${item.medication}${item.dosage ? ` · ${item.dosage}` : ''}`, '#pets');
     if (item.vetAppointment) {
@@ -55,7 +55,7 @@ export async function collectFamilyReminders(repositories, now = new Date()) {
     addAlert(alerts, item, 'contract', at(item.contractEndDate), `Contract ${item.name}`, 'Contracteinddatum bereikt', '#assistant?module=subscription');
     if (Number(item.debitDay) === now.getDate()) addAlert(alerts, item, 'debit', at(today), `Incasso ${item.name}`, 'Vandaag staat een betaling gepland', '#assistant?module=subscription');
   });
-  routines.filter((item) => item.status === 'active' && !item.paused && (item.days || []).includes(weekday)).forEach((item) => addAlert(alerts, item, 'routine', at(today, item.startTime || '09:00'), item.title, 'De routine staat klaar', '#routines'));
+  routines.filter((item) => !item.reminderDisabled && item.status === 'active' && !item.paused && (item.days || []).includes(weekday)).forEach((item) => addAlert(alerts, item, 'routine', at(today, item.startTime || '09:00'), item.title, 'De routine staat klaar', '#routines'));
   bucket.filter((item) => !item.completed).forEach((item) => addAlert(alerts, item, 'bucket', at(item.reminder), item.activity, 'Herinnering uit de gezinsbucketlist', '#assistant?module=bucket_list'));
   babysitting.forEach((item) => { const due = atDateTime(item.startAt); if (due) due.setHours(due.getHours() - 1); addAlert(alerts, item, 'babysitting', due, `Oppasmoment over een uur: ${item.title}`, 'Controleer instructies en contactgegevens', '#babysitter'); });
   packing.forEach((item) => { const list = Array.isArray(item.items) ? item.items : []; const complete = list.length && list.every((entry) => typeof entry === 'object' && (entry.checked || entry.completed || entry.done)); if (!complete) addAlert(alerts, item, 'packing', at(item.date, '08:00'), `Meeneemlijst: ${item.title}`, 'De lijst is nog niet volledig afgevinkt', '#packing'); });

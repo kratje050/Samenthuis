@@ -1,5 +1,6 @@
 import { uuid } from '../utils/uuid.js';
 import { toDateKey } from '../utils/dates.js';
+import { calculateRoutinePoints } from './points-service.js';
 
 function text(formData, name) { return String(formData.get(name) ?? '').trim(); }
 function number(formData, name, fallback = 0) { const parsed = Number(formData.get(name)); return Number.isFinite(parsed) ? parsed : fallback; }
@@ -49,6 +50,14 @@ export async function serializeAssistantForm({ definition, module, formData, for
   if (module === 'price_history') {
     result.unitPrice = result.quantity > 0 ? Math.round((result.price / result.quantity) * 1000) / 1000 : 0;
   }
+  if (module === 'routine') {
+    const calculation = calculateRoutinePoints(result);
+    result.pointValue = calculation.points;
+    result.pointsAutomatic = true;
+    result.pointsReason = calculation.reasons.join(' · ');
+    result.dailyProgress = existing.dailyProgress || {};
+    result.completionHistory = existing.completionHistory || [];
+  }
   if (module === 'savings_goal' && !Array.isArray(result.transactions)) result.transactions = existing.transactions || [];
   if (module === 'inbox') {
     result.convertedRecords = existing.convertedRecords || {};
@@ -83,7 +92,10 @@ export function filterAssistantRecords(records, {
 } = {}) {
   const normalized = query.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('nl-NL').trim();
   return records.filter((record) => {
-    if (status !== 'all' && String(record.status || 'active') !== status) return false;
+    const effectiveStatus = module === 'routine' && record.reminderDisabled && record.starterKind === 'family-routine' && record.status === 'archived'
+      ? 'active'
+      : String(record.status || 'active');
+    if (status !== 'all' && effectiveStatus !== status) return false;
     if (typeField && type !== 'all' && String(record[typeField] || '') !== type) return false;
     if (memberField && memberId !== 'all') {
       const assigned = Array.isArray(record[memberField]) ? record[memberField] : [record[memberField]];

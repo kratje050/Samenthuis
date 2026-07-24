@@ -3,6 +3,7 @@ import { openAssistantForm } from './assistant-view.js';
 import { routineAppliesToday, routineProgress, toggleRoutineItem } from '../services/routine-service.js';
 import { e, emptyState, handleError } from './view-helpers.js';
 import { showToast } from '../components/toast.js';
+import { calculateRoutinePoints } from '../services/points-service.js';
 
 async function renderRoutines() {
   const selectedId = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
@@ -15,7 +16,8 @@ async function renderRoutines() {
 function routineCard(routine) {
   const progress = routineProgress(routine);
   const member = appState.settings.members.find((item) => item.id === routine.memberId);
-  return `<article class="card routine-runner"><div class="card-header"><div><h2>${e(routine.title)}</h2><p class="small muted">${e(member?.name || 'Hele gezin')} · ${e(routine.startTime || 'Geen vaste tijd')}</p></div><strong>${progress.percentage}%</strong></div><div class="progress"><span style="width:${progress.percentage}%"></span></div><ul class="item-list">${(routine.items || []).map((item) => `<li class="list-item"><label class="check-row grow"><input type="checkbox" data-routine-item="${e(item.id)}" data-routine-id="${e(routine.id)}" ${progress.completedIds.includes(item.id) ? 'checked' : ''}><span><strong>${e(item.text)}</strong>${item.note ? `<small>${e(item.note)}</small>` : ''}</span></label></li>`).join('')}</ul><div class="page-actions"><button class="button secondary small" data-edit-routine="${e(routine.id)}">Routine aanpassen</button><button class="button ghost small" data-copy-routine="${e(routine.id)}">Kopiëren</button></div></article>`;
+  const pointValue = Number(routine.pointValue || calculateRoutinePoints(routine).points);
+  return `<article class="card routine-runner"><div class="card-header"><div><h2>${e(routine.title)}</h2><p class="small muted">${e(member?.name || 'Hele gezin')} · ${e(routine.startTime || 'Geen vaste tijd')}</p></div><strong>${progress.percentage}% · ${pointValue} pt</strong></div><div class="progress"><span style="width:${progress.percentage}%"></span></div><ul class="item-list">${(routine.items || []).map((item) => `<li class="list-item"><label class="check-row grow"><input type="checkbox" data-routine-item="${e(item.id)}" data-routine-id="${e(routine.id)}" ${progress.completedIds.includes(item.id) ? 'checked' : ''}><span><strong>${e(item.text)}</strong>${item.note ? `<small>${e(item.note)}</small>` : ''}</span></label></li>`).join('')}</ul><div class="page-actions"><button class="button secondary small" data-edit-routine="${e(routine.id)}">Routine aanpassen</button><button class="button ghost small" data-copy-routine="${e(routine.id)}">Kopiëren</button></div></article>`;
 }
 
 export const routinesView = {
@@ -34,7 +36,16 @@ export const routinesView = {
     });
     root.addEventListener('change', async (event) => {
       const input = event.target.closest('[data-routine-item]'); if (!input) return;
-      try { const routine = await repositories.modules.routine.getById(input.dataset.routineId); await toggleRoutineItem(repositories.modules.routine, routine, input.dataset.routineItem); await rerender(); } catch (error) { handleError(error); }
+      try {
+        const routine = await repositories.modules.routine.getById(input.dataset.routineId);
+        const wasComplete = routineProgress(routine).percentage === 100;
+        const updated = await toggleRoutineItem(repositories.modules.routine, routine, input.dataset.routineItem);
+        if (!wasComplete && routineProgress(updated).percentage === 100) {
+          const points = Number(updated.pointValue || calculateRoutinePoints(updated).points);
+          showToast(`Routine afgerond: ${points} punten verdiend.`);
+        }
+        await rerender();
+      } catch (error) { handleError(error); }
     });
   }
 };

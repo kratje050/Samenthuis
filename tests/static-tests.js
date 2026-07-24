@@ -53,6 +53,30 @@ export const staticTests = [
     includes(migration, 'cron.schedule');
     assert(!/grant\s+.*push_(configuration|subscriptions|delivery_log).*\s+to\s+(anon|authenticated)/s.test(migration));
   }],
+  ['automatische punten zijn offline gecachet en zichtbaar in taken en dashboard', () => {
+    const worker = read('service-worker.js');
+    const tasks = read('js/views/tasks-view.js');
+    const dashboard = read('js/views/dashboard-view.js');
+    includes(worker, './js/services/points-service.js');
+    includes(tasks, 'Automatisch berekende punten');
+    includes(tasks, 'calculateTaskPoints');
+    includes(dashboard, 'Puntenstrijd deze week');
+    includes(dashboard, 'summarizeWeeklyPoints');
+  }],
+  ['gezinsbibliotheek en automatische uitdagingen zijn volledig offline gecachet', () => {
+    const worker = read('service-worker.js');
+    const app = read('js/app.js');
+    const tasks = read('js/views/tasks-view.js');
+    const rewards = read('js/views/assistant-view.js');
+    for (const file of [
+      './js/data/family-content-library.js',
+      './js/services/family-content-service.js',
+      './js/services/challenge-progress-service.js'
+    ]) includes(worker, file);
+    includes(app, 'ensureStarterFamilyContent');
+    includes(tasks, 'applyAutomaticTaskChallenges');
+    includes(rewards, 'Loopt automatisch');
+  }],
   ['filteren blijft snel met grote testsets', () => {
     const records = Array.from({ length: 4000 }, (_, index) => ({ title: `Item ${index}`, category: index % 2 ? 'A' : 'B', memberIds: [index % 3 ? 'roy' : 'demy'] }));
     const start = performance.now(); const result = filterAssistantRecords(records, { query: 'Item', typeField: 'category', type: 'A', memberField: 'memberIds', memberId: 'roy' });

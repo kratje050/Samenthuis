@@ -2,7 +2,7 @@
 
 Samen Thuis is een complete Nederlandstalige gezinsplanner voor Roy, Demy, Miley en Navy. De app combineert één gezamenlijke agenda met boodschappen, huishoudelijke taken, een maaltijdplanner, voorraad, uitgaven, huisdieren, uitjes en een uitgebreide gezinsassistent.
 
-Versie 3.0.1 is offline-first en gebruikt het warme **Gezin & Co**-ontwerp: een rustige crème basis, koraalrode accenten, compacte gezinskaarten, lokale lijniconen, een vaste mobiele onderbalk en een helder zijmenu op grotere schermen. Alle schermen gebruiken IndexedDB en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
+Versie 3.1.0 is offline-first en gebruikt het warme **Gezin & Co**-ontwerp: een rustige crème basis, koraalrode accenten, compacte gezinskaarten, lokale lijniconen, een vaste mobiele onderbalk en een helder zijmenu op grotere schermen. Alle schermen gebruiken IndexedDB en werken na de eerste laadbeurt zonder internet. Wie op meerdere telefoons dezelfde gezinsgegevens wil gebruiken kan optioneel een beveiligd gezinsaccount activeren. De outbox synchroniseert dan via Supabase zodra internet beschikbaar is, inclusief PWA-achtergrondtaken waar de browser die ondersteunt. Zonder account blijft de app volledig lokaal bruikbaar.
 
 ## Mogelijkheden
 
@@ -11,7 +11,11 @@ Versie 3.0.1 is offline-first en gebruikt het warme **Gezin & Co**-ontwerp: een 
 - verjaardagen met geboortedatum, optionele koppeling aan een gezinslid en herinnering; ze verschijnen automatisch ieder jaar in de agenda en op het dashboard;
 - agenda importeren en exporteren als standaard `.ics`-bestand voor onder meer Google Agenda, Apple Agenda en Outlook;
 - boodschappenlijst met categorieën, winkels, sortering, afvinken en bulkverwijdering;
-- herhalende huishoudelijke taken met historie en automatische volgende taak;
+- herhalende huishoudelijke taken met historie, automatische volgende taak en automatisch berekende punten op basis van tijd, zwaarte en prioriteit;
+- een wekelijkse puntenstrijd op het dashboard die afgeronde taken en routines per gezinslid optelt;
+- een eenmalig ingevoerde gezinsbibliotheek met 79 terugkerende basistaken voor huishouden, kinderen, school, administratie, tuin, auto en seizoenswerk;
+- 12 herbruikbare taaksets met samen 126 extra taakideeën, plus 8 direct uitvoerbare ochtend-, school-, avond- en weekroutines;
+- 36 wekelijkse en maandelijkse gezinsuitdagingen die automatisch voortgang krijgen door passende afgeronde taken en bij een nieuwe periode opnieuw beginnen;
 - weekplanner, recepten, favorieten en ingrediënten naar boodschappen;
 - voorraadwaarschuwingen voor minimumaantal en houdbaarheid;
 - handmatig uitgavenoverzicht per maand, categorie en gezinslid;

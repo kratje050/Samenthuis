@@ -1,15 +1,15 @@
-# Testrapport Samen Thuis 3.0.1
+# Testrapport Samen Thuis 3.1.0
 
-Testdatum: 15 juli 2026  
+Testdatum: 24 juli 2026
 Testomgeving: Windows, lokale Python-webserver, ingebouwde Chromium-browser, Node.js
 
 ## Automatische controles
 
 | Controle | Werkelijk resultaat |
 |---|---|
-| `npm test` | 77 geslaagd, 0 mislukt |
-| `node --check` op alle JavaScriptbestanden | 128 bestanden syntactisch geldig |
-| `/tests/test-runner.html` in Chromium | 93 geslaagd, 0 mislukt |
+| `npm test` | 90 geslaagd, 0 mislukt |
+| `node --check` op alle JavaScriptbestanden | 133 bestanden syntactisch geldig |
+| `/tests/test-runner.html` in Chromium | 105 geslaagd, 0 mislukt |
 | `deno check supabase/functions/send-reminders/index.ts` | geslaagd |
 | productie Edge Function | OPTIONS 200, gebruikersactie zonder sessie correct 401 |
 | productie Supabase Cron | actief, iedere minuut; meerdere runs HTTP 200 met 2 actieve apparaatinschrijvingen |
@@ -27,10 +27,13 @@ Testomgeving: Windows, lokale Python-webserver, ingebouwde Chromium-browser, Nod
 - service-worker-updatebanner gebruikt om een wachtende versie bewust te activeren;
 - lokale webserver volledig gestopt en `#home` daarna opnieuw geopend: de PWA startte volledig uit de offline cache;
 - server na de offlineproef opnieuw gestart.
+- schone eerste installatie gecontroleerd: 79 taken, 12 taaksets, 8 routines en 36 uitdagingen zonder dubbele records;
+- een taak van 5 punten afgerond en gecontroleerd dat meerdere passende uitdagingen automatisch opliepen;
+- mobiele taken- en uitdagingenpagina gecontroleerd op 390 × 844 zonder horizontale overloop of starter-meldingenstorm;
 
 ## Gedekte logica
 
-De tests dekken onder meer repositories, CRUD, soft delete/herstel, versiegeschiedenis, outbox, back-up/import, herhalingen, agendaweergaven, filters, synchronisatiecursor, Realtime-signaal, PWA-achtergrondsync, prijs- en abonnementberekeningen, spaardoelen, routines, paklijsten, restjesmatching, conflicten, bestandsvalidatie, onderhoud, afvalherhaling, beloningsgoedkeuring, herinneringen, manifest en app-shell.
+De tests dekken onder meer repositories, CRUD, soft delete/herstel, versiegeschiedenis, outbox, back-up/import, herhalingen, agendaweergaven, filters, synchronisatiecursor, Realtime-signaal, PWA-achtergrondsync, prijs- en abonnementberekeningen, spaardoelen, routines, automatische taak- en routinepunten, weekranglijsten, idempotente starterinhoud, automatische uitdagingregels en terugboekingen, paklijsten, restjesmatching, conflicten, bestandsvalidatie, onderhoud, afvalherhaling, beloningsgoedkeuring, herinneringen, manifest en app-shell.
 
 De browserprestatietest bevat exact:
 

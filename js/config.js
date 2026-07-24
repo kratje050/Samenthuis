@@ -1,5 +1,5 @@
 export const APP_NAME = 'Samen Thuis';
-export const APP_VERSION = '3.0.1';
+export const APP_VERSION = '3.1.0';
 export const DATABASE_NAME = globalThis.SAMEN_THUIS_TEST_DB || 'samen-thuis-db';
 export const DATABASE_VERSION = 4;
 export const SETTINGS_ID = '20000000-0000-4000-8000-000000000001';

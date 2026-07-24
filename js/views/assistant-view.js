@@ -164,7 +164,8 @@ function specialActions(module, record) {
   if (module === 'maintenance' && record.status !== 'archived') actions.push(`<button class="button small secondary" data-complete-maintenance="${e(record.id)}">Onderhoud uitgevoerd</button>`);
   if (module === 'appliance' && !record.maintenanceId) actions.push(`<button class="button small secondary" data-appliance-maintenance="${e(record.id)}">Onderhoudstaak maken</button>`);
   if (module === 'waste' && !record.broughtInside) actions.push(`<button class="button small secondary" data-complete-waste="${e(record.id)}">${record.putOutside ? 'Container binnen' : 'Container buiten'}</button>`);
-  if (module === 'reward' && record.status === 'active' && appState.settings.rewardsEnabled !== false) actions.push(`<button class="button small secondary" data-reward-point="${e(record.id)}">＋1 voortgang</button>`);
+  if (module === 'reward' && record.status === 'active' && appState.settings.rewardsEnabled !== false && !record.autoRule) actions.push(`<button class="button small secondary" data-reward-point="${e(record.id)}">＋1 voortgang</button>`);
+  if (module === 'reward' && record.status === 'active' && record.autoRule) actions.push('<span class="badge low">Loopt automatisch</span>');
   if (module === 'child') actions.push(`<button class="button small secondary" data-print-profile="${e(record.id)}">Noodoverzicht printen</button><a class="button small ghost" href="#agenda?member=${e(record.memberId || '')}">Afspraken openen</a>`);
   if (module === 'family_memory') actions.push(`<button class="button small secondary" data-print-memory="${e(record.id)}">Printen</button>`);
   if (module === 'bucket_list' && !record.completed) actions.push(`<button class="button small secondary" data-complete-bucket="${e(record.id)}">Afronden</button>`);
@@ -179,6 +180,7 @@ function specialActions(module, record) {
 }
 
 function cardHtml(module, definition, record) {
+  const mutedStarterRoutine = module === 'routine' && record.reminderDisabled && record.starterKind === 'family-routine' && record.status === 'archived';
   const details = definition.fields.filter((field) => !['image','file','checkbox','pin','cloudMembers'].includes(field.type)).map((field) => ({ field, value: displayValue(field, record[field.name]) })).filter((item) => item.value && item.field.name !== definition.titleField).slice(0, 4);
   if (module === 'child' && record.birthDate) {
     const born = new Date(`${record.birthDate}T12:00:00`);
@@ -188,12 +190,14 @@ function cardHtml(module, definition, record) {
     if (age >= 0) details.unshift({ field: { label: 'Leeftijd' }, value: `${age} jaar` });
   }
   const progress = module === 'savings_goal' ? Math.min(100, Math.round(Number(record.currentAmount || 0) / Math.max(1, Number(record.targetAmount || 1)) * 100)) : null;
+  const rewardProgress = module === 'reward' ? Math.min(100, Math.round(Number(record.progress || 0) / Math.max(1, Number(record.goal || 1)) * 100)) : null;
   return `<article class="card assistant-card ${isOverdue(record) ? 'is-overdue' : ''}">
     ${module === 'inbox' ? `<label class="assistant-select"><input type="checkbox" data-inbox-select="${e(record.id)}"> Selecteer</label>` : ''}
-    <div class="card-header"><div><span class="badge ${record.status === 'archived' ? '' : 'low'}">${e(record.status || 'actief')}</span><h2>${e(recordTitle(definition, record))}</h2></div><div class="list-actions"><button class="mini-action" data-edit-assistant="${e(record.id)}" aria-label="Aanpassen">${icon('edit')}</button><button class="mini-action" data-copy-assistant="${e(record.id)}" aria-label="Kopiëren">${icon('copy')}</button><button class="mini-action danger" data-delete-assistant="${e(record.id)}" aria-label="Verwijderen">${icon('trash')}</button></div></div>
+    <div class="card-header"><div><span class="badge ${record.status === 'archived' && !mutedStarterRoutine ? '' : 'low'}">${e(mutedStarterRoutine ? 'actief · stil' : record.status || 'actief')}</span><h2>${e(recordTitle(definition, record))}</h2></div><div class="list-actions"><button class="mini-action" data-edit-assistant="${e(record.id)}" aria-label="Aanpassen">${icon('edit')}</button><button class="mini-action" data-copy-assistant="${e(record.id)}" aria-label="Kopiëren">${icon('copy')}</button><button class="mini-action danger" data-delete-assistant="${e(record.id)}" aria-label="Verwijderen">${icon('trash')}</button></div></div>
     ${details.length ? `<dl class="assistant-details">${details.map(({ field, value }) => `<div><dt>${e(field.label)}</dt><dd>${e(value)}</dd></div>`).join('')}</dl>` : '<p class="muted">Geen aanvullende informatie.</p>'}
     ${progress !== null ? `<div class="progress" aria-label="${progress}% gespaard"><span style="width:${progress}%"></span></div><p class="small muted">${progress}% van het doelbedrag</p>` : ''}
-    <div class="assistant-card-actions">${specialActions(module, record)}${(definition.conversions || []).map((target) => `<button class="button small ghost" data-convert-assistant="${e(record.id)}" data-convert-target="${e(target)}">Naar ${e(conversionLabels[target])}</button>`).join('')}<button class="button small ghost" data-archive-assistant="${e(record.id)}">${record.status === 'archived' ? 'Opnieuw openen' : 'Archiveren'}</button></div>
+    ${rewardProgress !== null ? `<div class="progress reward-progress" aria-label="${rewardProgress}% van de uitdaging"><span style="width:${rewardProgress}%"></span></div><p class="small muted"><strong>${e(record.progress || 0)} van ${e(record.goal || 0)} ${e(record.progressUnit || 'stappen')}</strong>${record.autoRule ? ' · wordt bijgewerkt zodra een passende taak wordt afgerond' : ''}</p>` : ''}
+    <div class="assistant-card-actions">${specialActions(module, record)}${(definition.conversions || []).map((target) => `<button class="button small ghost" data-convert-assistant="${e(record.id)}" data-convert-target="${e(target)}">Naar ${e(conversionLabels[target])}</button>`).join('')}${mutedStarterRoutine ? '<span class="badge">Starter zonder melding</span>' : `<button class="button small ghost" data-archive-assistant="${e(record.id)}">${record.status === 'archived' ? 'Opnieuw openen' : 'Archiveren'}</button>`}</div>
   </article>`;
 }
 
@@ -245,6 +249,12 @@ function wasteCalendar(records) {
 function moduleSummary(module, records) {
   if (module === 'subscription') { const summary = subscriptionSummary(records); return `<div class="summary-strip"><div><span>Actief</span><strong>${summary.count}</strong></div><div><span>Per maand</span><strong>${formatCurrency(summary.monthly,appState.settings.currency)}</strong></div><div><span>Per jaar</span><strong>${formatCurrency(summary.yearly,appState.settings.currency)}</strong></div></div>`; }
   if (module === 'price_history') { const stats = priceHistoryStats(records); return `<div class="summary-strip"><div><span>Registraties</span><strong>${stats.count}</strong></div><div><span>Laagste eenheidsprijs</span><strong>${formatCurrency(stats.lowest,appState.settings.currency)}</strong></div><div><span>Hoogste</span><strong>${formatCurrency(stats.highest,appState.settings.currency)}</strong></div><div><span>Goedkoopste winkel</span><strong>${e(stats.cheapestStore||'—')}</strong></div></div>`; }
+  if (module === 'reward') {
+    const active = records.filter((record) => record.status === 'active').length;
+    const achieved = records.filter((record) => record.status === 'achieved').length;
+    const automatic = records.filter((record) => record.autoRule).length;
+    return `<div class="summary-strip"><div><span>Actief</span><strong>${active}</strong></div><div><span>Automatisch</span><strong>${automatic}</strong></div><div><span>Behaald</span><strong>${achieved}</strong></div></div><p class="starter-summary-note">Rond taken af: passende uitdagingen lopen vanzelf mee. Wekelijkse en maandelijkse starters beginnen automatisch opnieuw in een nieuwe periode.</p>`;
+  }
   if (module === 'waste') return wasteCalendar(records);
   return '';
 }
